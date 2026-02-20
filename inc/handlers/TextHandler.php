@@ -48,6 +48,11 @@ class TextHandler
                     $subject     = MarkdownFormatter::extractSubject($sharedText);
                     $htmlMessage = MarkdownFormatter::buildHtml($sharedText, $subject, $ctx, $extraFields);
                 }
+            } elseif (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && !empty($decoded)) {
+                // Fields-only payload (no text_or_url key)
+                $firstValue = reset($decoded);
+                $subject    = !empty($firstValue) ? "Custom Fields: " . mb_substr((string) $firstValue, 0, 60) : "Custom Fields";
+                $htmlMessage = self::buildFieldsOnlyHtml($decoded, $ctx);
             }
         }
 
@@ -60,7 +65,7 @@ class TextHandler
             );
         }
 
-        // ── Email action ──────────────────────────────────
+        // ── Email action (fields-only already handled above) ──
         if ($config['email_enabled']) {
             if ($htmlMessage !== null) {
                 EmailAction::sendHtmlEmail(
@@ -97,5 +102,54 @@ class TextHandler
                 );
             }
         }
+    }
+
+    /**
+     * Build HTML email for a fields-only JSON payload.
+     *
+     * @param array          $fields Key-value map of custom fields.
+     * @param RequestContext  $ctx    Request metadata.
+     * @return string Full HTML document.
+     */
+    private static function buildFieldsOnlyHtml(array $fields, RequestContext $ctx): string
+    {
+        $rows = '';
+        foreach ($fields as $key => $value) {
+            $safeKey   = htmlspecialchars((string) $key);
+            $safeValue = htmlspecialchars((string) $value);
+            $rows .= "<tr><td style=\"padding:8px 16px 8px 0;color:#757575;font-weight:bold;white-space:nowrap;vertical-align:top;\">{$safeKey}</td>"
+                . "<td style=\"padding:8px 0;color:#333;\">{$safeValue}</td></tr>";
+        }
+
+        $html = <<<HTML
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f0f0f0;font-family:Arial,Helvetica,sans-serif;">
+  <div style="max-width:700px;margin:20px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+
+    <!-- Header -->
+    <div style="background:#37474f;color:#ffffff;padding:20px 24px;">
+      <h1 style="margin:0;font-size:20px;font-weight:bold;">Custom Fields</h1>
+    </div>
+
+    <!-- Content -->
+    <div style="padding:20px 24px;">
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        {$rows}
+      </table>
+    </div>
+
+    <!-- Footer -->
+    <div style="background:#f5f5f5;padding:14px 24px;font-size:11px;color:#999;border-top:1px solid #e0e0e0;">
+      Received: {$ctx->time} &middot; IP: {$ctx->ip} &middot; UA: {$ctx->ua}
+    </div>
+
+  </div>
+</body>
+</html>
+HTML;
+
+        return $html;
     }
 }
