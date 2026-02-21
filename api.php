@@ -48,7 +48,14 @@ if (empty($config['db_enabled'])) {
 $debug = !empty($config['debug']);
 
 $app = AppFactory::create();
-$app->setBasePath($_SERVER['SCRIPT_NAME']);
+$scriptName = $_SERVER['SCRIPT_NAME'];
+$requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+if (strpos($requestUri, $scriptName) === 0) {
+    $basePath = $scriptName;
+} else {
+    $basePath = dirname($scriptName) . '/api';
+}
+$app->setBasePath($basePath);
 $app->addRoutingMiddleware();
 
 // JSON error handler (override Slim's default HTML errors)
@@ -71,10 +78,9 @@ $errorMiddleware->setDefaultErrorHandler(function (
         ->withHeader('Content-Type', 'application/json');
 });
 
-// -- Routes ------------------------------------------------------------------
+// -- Route helpers -----------------------------------------------------------
 
-$app->get('/entries/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($config): Response {
-    // Auth check
+$checkAuth = function (Request $request, Response $response) use ($config): ?Response {
     if (!empty($config['api_auth_enabled'])) {
         $authHeader = $request->getHeaderLine('Authorization');
         $expected = 'Basic ' . base64_encode($config['auth_username'] . ':' . $config['auth_password']);
@@ -86,9 +92,15 @@ $app->get('/entries/{id:[0-9]+}', function (Request $request, Response $response
                 ->withHeader('WWW-Authenticate', 'Basic realm="API"');
         }
     }
+    return null;
+};
 
-    // Lookup
-    $entry = DatabaseAction::getById($config['db_path'], (int) $args['id']);
+$lookupEntry = function (int $id, Response $response) use ($config, $basePath): Response {
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $baseUrl = $scheme . '://' . $host . $basePath;
+
+    $entry = DatabaseAction::getByIdWithAttachments($config['db_path'], $id, $baseUrl);
     if ($entry === null) {
         $response->getBody()->write((string) json_encode(['error' => 'Entry not found']));
         return $response
@@ -96,12 +108,83 @@ $app->get('/entries/{id:[0-9]+}', function (Request $request, Response $response
             ->withHeader('Content-Type', 'application/json');
     }
 
-    // Cast integer fields for clean JSON
-    $entry['id'] = (int) $entry['id'];
-    $entry['file_size'] = $entry['file_size'] !== null ? (int) $entry['file_size'] : null;
-
     $response->getBody()->write((string) json_encode($entry));
     return $response->withHeader('Content-Type', 'application/json');
+};
+
+// -- Routes ------------------------------------------------------------------
+
+$app->get('/entries/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $lookupEntry): Response {
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+    return $lookupEntry((int) $args['id'], $response);
+});
+
+$app->post('/entries', function (Request $request, Response $response) use ($checkAuth, $lookupEntry): Response {
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    $body = json_decode((string) $request->getBody(), true);
+    if (!is_array($body) || !isset($body['id'])) {
+        $response->getBody()->write((string) json_encode(['error' => 'Missing id in request body']));
+        return $response
+            ->withStatus(400)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    return $lookupEntry((int) $body['id'], $response);
+});
+
+$app->get('/files/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $config): Response {
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    // Lookup attachment
+    $attachment = DatabaseAction::getAttachmentById($config['db_path'], (int) $args['id']);
+    if ($attachment === null) {
+        $response->getBody()->write((string) json_encode(['error' => 'Attachment not found']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    if ($attachment['type'] !== 'file' || $attachment['file_path'] === null) {
+        $response->getBody()->write((string) json_encode(['error' => 'No file stored for this attachment']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    // Path traversal protection
+    $realPath = realpath($attachment['file_path']);
+    $storagePath = realpath($config['storage_path']);
+    if ($realPath === false || $storagePath === false || strpos($realPath, $storagePath) !== 0) {
+        $response->getBody()->write((string) json_encode(['error' => 'File not accessible']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    // Serve the file
+    $finfo = new \finfo(FILEINFO_MIME_TYPE);
+    $mimeType = $finfo->file($realPath) ?: 'application/octet-stream';
+    $fileSize = filesize($realPath);
+    $filename = $attachment['filename'] ?? basename($realPath);
+
+    $stream = fopen($realPath, 'rb');
+    $body = new \Slim\Psr7\Stream($stream);
+
+    return $response
+        ->withHeader('Content-Type', $mimeType)
+        ->withHeader('Content-Length', (string) $fileSize)
+        ->withHeader('Content-Disposition', 'inline; filename="' . addslashes($filename) . '"')
+        ->withBody($body);
 });
 
 $app->run();
