@@ -55,6 +55,9 @@ class TextHandler
                 }
                 if (array_key_exists('_email', $decoded)) {
                     $emailOverride = $decoded['_email'];
+                    if ($emailOverride === 'false' || $emailOverride === '0' || $emailOverride === '') {
+                        $emailOverride = false;
+                    }
                     unset($decoded['_email']);
                 }
                 // Re-encode body without reserved fields
