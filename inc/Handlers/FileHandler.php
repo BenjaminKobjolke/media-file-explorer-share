@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Handlers;
 
+use App\Actions\DatabaseAction;
 use App\Actions\EmailAction;
 use App\Actions\StorageAction;
 use App\RequestContext;
@@ -17,9 +18,9 @@ class FileHandler
      *
      * @param array          $config  Global config array.
      * @param RequestContext  $ctx     Request metadata.
-     * @return void Exits on error.
+     * @return int|null Insert ID when database is enabled, null otherwise.
      */
-    public static function handle(array $config, RequestContext $ctx): void
+    public static function handle(array $config, RequestContext $ctx): ?int
     {
         $file = $_FILES['file'];
 
@@ -69,11 +70,25 @@ class FileHandler
         $subject = "File: " . mb_substr($filename, 0, 80);
 
         // -- Storage action --------------------------------
+        $filePath = null;
         if ($config['storage_enabled']) {
-            StorageAction::saveFile(
+            $filePath = StorageAction::saveFile(
                 $config['storage_path'],
                 $filename,
                 $fileData
+            );
+        }
+
+        // -- Database action -------------------------------
+        $insertId = null;
+        if (!empty($config['db_enabled'])) {
+            $insertId = DatabaseAction::saveFile(
+                $config['db_path'],
+                $subject,
+                $filename,
+                $file['size'],
+                $filePath,
+                $ctx
             );
         }
 
@@ -88,5 +103,7 @@ class FileHandler
                 $ctx
             );
         }
+
+        return $insertId;
     }
 }

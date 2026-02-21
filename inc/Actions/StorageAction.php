@@ -16,9 +16,9 @@ class StorageAction
      * @param string $basePath  Root storage directory from config.
      * @param string $filename  Original filename.
      * @param string $fileData  Raw file contents.
-     * @return void Exits on failure.
+     * @return string Destination path. Exits on failure.
      */
-    public static function saveFile(string $basePath, string $filename, string $fileData): void
+    public static function saveFile(string $basePath, string $filename, string $fileData): string
     {
         $dir = rtrim($basePath, '/') . '/files';
 
@@ -35,6 +35,8 @@ class StorageAction
             http_response_code(500);
             exit("Failed to write file to: {$dest}");
         }
+
+        return $dest;
     }
 
     /**

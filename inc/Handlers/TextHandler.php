@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Handlers;
 
+use App\Actions\DatabaseAction;
 use App\Actions\EmailAction;
 use App\Actions\StorageAction;
 use App\Formatters\LogarteFormatter;
@@ -19,9 +20,9 @@ class TextHandler
      *
      * @param array          $config  Global config array.
      * @param RequestContext  $ctx     Request metadata.
-     * @return void Exits on error.
+     * @return int|null Insert ID when database is enabled, null otherwise.
      */
-    public static function handle(array $config, RequestContext $ctx): void
+    public static function handle(array $config, RequestContext $ctx): ?int
     {
         $body = file_get_contents('php://input');
         if ($body === false || $body === '') {
@@ -75,6 +76,17 @@ class TextHandler
             );
         }
 
+        // -- Database action -------------------------------
+        $insertId = null;
+        if (!empty($config['db_enabled'])) {
+            $insertId = DatabaseAction::saveText(
+                $config['db_path'],
+                $subject,
+                $body,
+                $ctx
+            );
+        }
+
         // -- Email action ----------------------------------
         if ($config['email_enabled']) {
             if ($htmlMessage !== null) {
@@ -112,6 +124,8 @@ class TextHandler
                 );
             }
         }
+
+        return $insertId;
     }
 
     /**

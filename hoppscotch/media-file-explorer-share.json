@@ -12,7 +12,7 @@
       "params": [],
       "headers": [],
       "preRequestScript": "",
-      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response contains configured message\", () => {\n  pw.expect(pw.response.body).toContain(\"OK\");\n});",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response is OK or numeric ID\", () => {\n  const body = pw.response.body.trim();\n  pw.expect(body === \"OK\" || /^\\d+$/.test(body)).toBe(true);\n});",
       "auth": {
         "authType": "none",
         "authActive": true
@@ -23,7 +23,7 @@
       },
       "requestVariables": [],
       "responses": {},
-      "description": "Share a text payload via JSON. The text_or_url field is detected and formatted as Markdown for the email."
+      "description": "Share a text payload via JSON. The text_or_url field is detected and formatted as Markdown for the email. When db_enabled is true, returns the new entry ID instead of OK."
     },
     {
       "v": "17",
@@ -145,7 +145,7 @@
       "params": [],
       "headers": [],
       "preRequestScript": "",
-      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response contains configured message\", () => {\n  pw.expect(pw.response.body).toContain(\"OK\");\n});",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response is OK or numeric ID\", () => {\n  const body = pw.response.body.trim();\n  pw.expect(body === \"OK\" || /^\\d+$/.test(body)).toBe(true);\n});",
       "auth": {
         "authType": "basic",
         "authActive": true,
@@ -158,7 +158,51 @@
       },
       "requestVariables": [],
       "responses": {},
-      "description": "Share text with Basic Auth enabled. Requires auth_enabled=true in config/app.php."
+      "description": "Share text with Basic Auth enabled. Requires auth_enabled=true in config/app.php. When db_enabled is true, returns the new entry ID instead of OK."
+    },
+    {
+      "v": "17",
+      "name": "API: Get entry by ID",
+      "method": "GET",
+      "endpoint": "<<baseURL>>api.php/entries/1",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response is JSON with id field\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body.id).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Fetch a database entry by ID via the read-only API. Requires api_enabled=true and db_enabled=true in config/app.php."
+    },
+    {
+      "v": "17",
+      "name": "API: Get entry by ID (with auth)",
+      "method": "GET",
+      "endpoint": "<<baseURL>>api.php/entries/1",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response is JSON with id field\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body.id).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Fetch a database entry by ID with Basic Auth. Requires api_enabled=true, db_enabled=true, and api_auth_enabled=true in config/app.php."
     },
     {
       "v": "17",
@@ -209,5 +253,5 @@
   },
   "headers": [],
   "variables": [],
-  "description": "Media File Explorer Share — webhook endpoint examples for text, file, and error scenarios"
+  "description": "Media File Explorer Share — webhook endpoint examples for text, file, and error scenarios. When db_enabled is true, successful requests return the new entry ID instead of OK."
 }]

@@ -47,13 +47,18 @@ class WebhookHandler
 
         // -- Dispatch --------------------------------------
         if (!empty($_FILES['file'])) {
-            FileHandler::handle($this->config, $ctx);
+            $insertId = FileHandler::handle($this->config, $ctx);
         } else {
-            TextHandler::handle($this->config, $ctx);
+            $insertId = TextHandler::handle($this->config, $ctx);
         }
 
         // -- Success response ------------------------------
         http_response_code(200);
-        echo $this->config['response_message'] . "\n";
+        if ($insertId !== null) {
+            echo (string) $insertId;
+        } else {
+            echo $this->config['response_message'];
+        }
+        echo "\n";
     }
 }

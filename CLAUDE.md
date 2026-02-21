@@ -4,7 +4,10 @@ PHP webhook receiver for the Media File Explorer Android app. Accepts text/file 
 
 ## Architecture
 
-Single-endpoint PHP app (`share.php`) using PSR-4 autoloading via Composer.
+PHP app with two entry points using PSR-4 autoloading via Composer:
+
+- `share.php` — POST webhook receiver (accepts text/file uploads)
+- `api.php` — GET read-only JSON API (Slim 4, queries the SQLite database)
 
 ### Namespace Map
 
@@ -12,7 +15,7 @@ Single-endpoint PHP app (`share.php`) using PSR-4 autoloading via Composer.
 |---|---|---|
 | `App` | `inc/` | `WebhookHandler`, `RequestContext`, `AuthValidator` |
 | `App\Handlers` | `inc/Handlers/` | `FileHandler`, `TextHandler` |
-| `App\Actions` | `inc/Actions/` | `EmailAction`, `StorageAction` |
+| `App\Actions` | `inc/Actions/` | `DatabaseAction`, `EmailAction`, `StorageAction` |
 | `App\Formatters` | `inc/Formatters/` | `LogarteFormatter`, `MarkdownFormatter` |
 
 ### Request Flow
@@ -20,8 +23,15 @@ Single-endpoint PHP app (`share.php`) using PSR-4 autoloading via Composer.
 1. `share.php` loads config + Composer autoloader, creates `WebhookHandler`
 2. `WebhookHandler` validates POST method and optional Basic Auth
 3. Routes to `FileHandler` (multipart file upload) or `TextHandler` (JSON/text)
-4. Handlers call `StorageAction` and/or `EmailAction` based on config
-5. Returns configured response message with HTTP 200
+4. Handlers call `StorageAction`, `DatabaseAction`, and/or `EmailAction` based on config
+5. Returns the new database entry ID (when `db_enabled`) or the configured response message with HTTP 200
+
+#### Read API (`api.php`)
+
+1. `api.php` loads config + Composer autoloader, gates on `api_enabled` and `db_enabled`
+2. Creates a Slim 4 app with JSON error handling
+3. `GET /entries/{id}` — optional Basic Auth check, then `DatabaseAction::getById()`
+4. Returns JSON response (200 with entry data, 401 if unauthorized, 404 if not found)
 
 ## Build / Test
 
