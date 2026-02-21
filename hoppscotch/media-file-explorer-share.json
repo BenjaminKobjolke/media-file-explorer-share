@@ -1,0 +1,213 @@
+[{
+  "v": 11,
+  "id": "cmfs0001a001ms001folder01",
+  "name": "media-file-explorer-share",
+  "folders": [],
+  "requests": [
+    {
+      "v": "17",
+      "name": "Share text (text_or_url)",
+      "method": "POST",
+      "endpoint": "<<baseURL>>share.php",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response contains configured message\", () => {\n  pw.expect(pw.response.body).toContain(\"OK\");\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n    \"text_or_url\": \"Hello from Media File Explorer!\\n\\nThis is a shared text payload sent via the API Integration feature.\"\n}"
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Share a text payload via JSON. The text_or_url field is detected and formatted as Markdown for the email."
+    },
+    {
+      "v": "17",
+      "name": "Share Markdown text",
+      "method": "POST",
+      "endpoint": "<<baseURL>>share.php",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n    \"text_or_url\": \"# Bug Report\\n\\n## Steps to reproduce\\n\\n1. Open the app\\n2. Tap **Share**\\n3. Select a file larger than 50 MB\\n\\n## Expected\\n\\nFile is uploaded.\\n\\n## Actual\\n\\n`Error 413` is returned.\\n\\n---\\n*Device: Pixel 8, Android 15*\"\n}"
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Share Markdown-formatted text. The handler renders it as HTML in the email notification."
+    },
+    {
+      "v": "17",
+      "name": "Share URL",
+      "method": "POST",
+      "endpoint": "<<baseURL>>share.php",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n    \"text_or_url\": \"https://play.google.com/store/apps/details?id=de.xida.folder_gallery\"\n}"
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Share a URL via the text_or_url field."
+    },
+    {
+      "v": "17",
+      "name": "Share custom fields (no text_or_url)",
+      "method": "POST",
+      "endpoint": "<<baseURL>>share.php",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n    \"device\": \"Pixel 8 Pro\",\n    \"android_version\": \"15\",\n    \"app_version\": \"4.2.1\",\n    \"event\": \"file_shared\",\n    \"path\": \"/storage/emulated/0/DCIM/Camera/IMG_20260221.jpg\"\n}"
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Send arbitrary key-value fields without text_or_url. Rendered as a table in the email."
+    },
+    {
+      "v": "17",
+      "name": "Share file upload",
+      "method": "POST",
+      "endpoint": "<<baseURL>>share.php",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": "multipart/form-data",
+        "body": [
+          {
+            "key": "file",
+            "value": "",
+            "isFile": true,
+            "active": true
+          }
+        ]
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Upload a file via multipart form-data. Select a file in Hoppscotch before sending. The file is emailed as attachment and/or saved to storage."
+    },
+    {
+      "v": "17",
+      "name": "Share plain text",
+      "method": "POST",
+      "endpoint": "<<baseURL>>share.php",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": "text/plain",
+        "body": "This is a plain-text payload.\nIt will be sent as a plain-text email with request metadata."
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Send a plain-text body (non-JSON). Falls back to plain-text email with metadata."
+    },
+    {
+      "v": "17",
+      "name": "Share text with Basic Auth",
+      "method": "POST",
+      "endpoint": "<<baseURL>>share.php",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response contains configured message\", () => {\n  pw.expect(pw.response.body).toContain(\"OK\");\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n    \"text_or_url\": \"Authenticated payload from Media File Explorer.\"\n}"
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Share text with Basic Auth enabled. Requires auth_enabled=true in config/app.php."
+    },
+    {
+      "v": "17",
+      "name": "Error: empty body",
+      "method": "POST",
+      "endpoint": "<<baseURL>>share.php",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 400\", () => {\n  pw.expect(pw.response.status).toBe(400);\n});\n\npw.test(\"Response says empty body\", () => {\n  pw.expect(pw.response.body).toContain(\"Empty body\");\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Send an empty POST body. Should return HTTP 400 'Empty body'."
+    },
+    {
+      "v": "17",
+      "name": "Error: GET method not allowed",
+      "method": "GET",
+      "endpoint": "<<baseURL>>share.php",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 405\", () => {\n  pw.expect(pw.response.status).toBe(405);\n});\n\npw.test(\"Response says method not allowed\", () => {\n  pw.expect(pw.response.body).toContain(\"Method Not Allowed\");\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "GET request to share.php. Should return HTTP 405 'Method Not Allowed'."
+    }
+  ],
+  "auth": {
+    "authType": "inherit",
+    "authActive": true
+  },
+  "headers": [],
+  "variables": [],
+  "description": "Media File Explorer Share — webhook endpoint examples for text, file, and error scenarios"
+}]
