@@ -4,5 +4,6 @@ config/app.php
 composer.lock
 .idea/
 .vscode/
+.claude/
 Thumbs.db
 .DS_Store
