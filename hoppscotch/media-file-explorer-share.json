@@ -162,13 +162,74 @@
     },
     {
       "v": "17",
+      "name": "Append text to entry",
+      "method": "POST",
+      "endpoint": "<<baseURL>>share.php",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response is parent entry ID\", () => {\n  const body = pw.response.body.trim();\n  pw.expect(/^\\d+$/.test(body)).toBe(true);\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n    \"entry_id\": 1,\n    \"text_or_url\": \"This is an additional note appended to entry 1.\"\n}"
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Append text to an existing entry as an attachment. Send entry_id in the JSON body along with the text payload. Returns the parent entry ID. Requires db_enabled=true."
+    },
+    {
+      "v": "17",
+      "name": "Append file to entry",
+      "method": "POST",
+      "endpoint": "<<baseURL>>share.php",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response is parent entry ID\", () => {\n  const body = pw.response.body.trim();\n  pw.expect(/^\\d+$/.test(body)).toBe(true);\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": "multipart/form-data",
+        "body": [
+          {
+            "key": "file",
+            "value": "",
+            "isFile": true,
+            "active": true
+          },
+          {
+            "key": "entry_id",
+            "value": "1",
+            "isFile": false,
+            "active": true
+          },
+          {
+            "key": "description",
+            "value": "Screenshot of the bug",
+            "isFile": false,
+            "active": true
+          }
+        ]
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Append a file to an existing entry as an attachment. Send entry_id as a form field along with the file. Extra fields (like description) are stored as JSON body. Returns the parent entry ID. Requires db_enabled=true."
+    },
+    {
+      "v": "17",
       "name": "API: Get entry by ID",
       "method": "GET",
       "endpoint": "<<baseURL>>api.php/entries/1",
       "params": [],
       "headers": [],
       "preRequestScript": "",
-      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response is JSON with id field\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body.id).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n});",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response is JSON with id and attachments\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body.id).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n  pw.expect(Array.isArray(body.attachments)).toBe(true);\n});",
       "auth": {
         "authType": "none",
         "authActive": true
@@ -179,7 +240,28 @@
       },
       "requestVariables": [],
       "responses": {},
-      "description": "Fetch a database entry by ID via the read-only API. Requires api_enabled=true and db_enabled=true in config/app.php."
+      "description": "Fetch a database entry by ID with its attachments via the read-only API. Returns the entry data plus an attachments array with file_url for file-type attachments. Requires api_enabled=true and db_enabled=true in config/app.php. Clean URL alternative: <<baseURL>>api/entries/1"
+    },
+    {
+      "v": "17",
+      "name": "API: Get entry by ID (POST body)",
+      "method": "POST",
+      "endpoint": "<<baseURL>>api.php/entries",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response is JSON with id and attachments\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body.id).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n  pw.expect(Array.isArray(body.attachments)).toBe(true);\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n    \"id\": 1\n}"
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Fetch a database entry by sending the ID in a JSON POST body. Alternative to GET /entries/{id}. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/entries"
     },
     {
       "v": "17",
@@ -202,7 +284,28 @@
       },
       "requestVariables": [],
       "responses": {},
-      "description": "Fetch a database entry by ID with Basic Auth. Requires api_enabled=true, db_enabled=true, and api_auth_enabled=true in config/app.php."
+      "description": "Fetch a database entry by ID with Basic Auth. Requires api_enabled=true, db_enabled=true, and api_auth_enabled=true in config/app.php. Clean URL alternative: <<baseURL>>api/entries/1"
+    },
+    {
+      "v": "17",
+      "name": "API: Download attachment file",
+      "method": "GET",
+      "endpoint": "<<baseURL>>api.php/files/1",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has Content-Disposition header\", () => {\n  const cd = pw.response.headers[\"content-disposition\"] || pw.response.headers[\"Content-Disposition\"];\n  pw.expect(cd).toBeDefined();\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Download a file attachment by its attachment ID. Returns the file with correct Content-Type and Content-Disposition headers. Requires api_enabled=true, db_enabled=true, and storage_enabled=true. Clean URL alternative: <<baseURL>>api/files/1"
     },
     {
       "v": "17",
