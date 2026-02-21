@@ -10,3 +10,4 @@ composer.lock
 .claude/
 Thumbs.db
 .DS_Store
+.mcp.json
