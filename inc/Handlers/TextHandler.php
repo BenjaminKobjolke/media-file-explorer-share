@@ -40,10 +40,30 @@ class TextHandler
         $subject     = "Webhook payload {$ctx->time}";
         $htmlMessage = null;
         $decoded     = null;
+        $entryId     = null;
 
         // -- JSON with text_or_url field -------------------
         if (stripos($contentType, 'application/json') !== false) {
             $decoded = json_decode($body, true);
+
+            // -- Extract entry_id for append mode ----------
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && isset($decoded['entry_id'])) {
+                $entryId = (int) $decoded['entry_id'];
+                unset($decoded['entry_id']);
+                // Re-encode body without entry_id
+                $body = json_encode($decoded, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+                if (!empty($config['db_enabled'])) {
+                    $parent = DatabaseAction::getById($config['db_path'], $entryId);
+                    if ($parent === null) {
+                        http_response_code(404);
+                        exit('Parent entry not found');
+                    }
+                } else {
+                    http_response_code(400);
+                    exit('entry_id requires db_enabled');
+                }
+            }
 
             if (json_last_error() === JSON_ERROR_NONE && isset($decoded['text_or_url'])) {
                 $sharedText  = $decoded['text_or_url'];
@@ -79,12 +99,25 @@ class TextHandler
         // -- Database action -------------------------------
         $insertId = null;
         if (!empty($config['db_enabled'])) {
-            $insertId = DatabaseAction::saveText(
-                $config['db_path'],
-                $subject,
-                $body,
-                $ctx
-            );
+            if ($entryId !== null) {
+                // Append mode: add as attachment to existing entry
+                DatabaseAction::appendText(
+                    $config['db_path'],
+                    $entryId,
+                    $subject,
+                    $body,
+                    $ctx
+                );
+                $insertId = $entryId;
+            } else {
+                // Normal mode: create new entry
+                $insertId = DatabaseAction::saveText(
+                    $config['db_path'],
+                    $subject,
+                    $body,
+                    $ctx
+                );
+            }
         }
 
         // -- Email action ----------------------------------

@@ -55,6 +55,23 @@ class FileHandler
             exit('Failed to read uploaded file');
         }
 
+        // -- Append mode: check for entry_id ---------------
+        $entryId = isset($_POST['entry_id']) ? (int) $_POST['entry_id'] : null;
+        if ($entryId !== null && !empty($config['db_enabled'])) {
+            $parent = DatabaseAction::getById($config['db_path'], $entryId);
+            if ($parent === null) {
+                http_response_code(404);
+                exit('Parent entry not found');
+            }
+        } elseif ($entryId !== null) {
+            http_response_code(400);
+            exit('entry_id requires db_enabled');
+        }
+
+        // -- Capture extra POST fields as JSON body --------
+        $extraFields = array_diff_key($_POST, ['file' => true, 'entry_id' => true]);
+        $body = !empty($extraFields) ? json_encode($extraFields, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null;
+
         // -- Build metadata HTML --------------------------
         $metaHtml = "<p><strong>Time:</strong> {$ctx->time}</p>"
             . "<p><strong>IP:</strong> {$ctx->ip}</p>"
@@ -62,7 +79,7 @@ class FileHandler
             . "<p><strong>Filename:</strong> " . htmlspecialchars($filename) . "</p>"
             . "<p><strong>Size:</strong> " . number_format($file['size']) . " bytes</p>";
 
-        foreach ($_POST as $key => $value) {
+        foreach ($extraFields as $key => $value) {
             $metaHtml .= '<p><strong>' . htmlspecialchars($key) . ':</strong> '
                 . htmlspecialchars($value) . '</p>';
         }
@@ -82,14 +99,31 @@ class FileHandler
         // -- Database action -------------------------------
         $insertId = null;
         if (!empty($config['db_enabled'])) {
-            $insertId = DatabaseAction::saveFile(
-                $config['db_path'],
-                $subject,
-                $filename,
-                $file['size'],
-                $filePath,
-                $ctx
-            );
+            if ($entryId !== null) {
+                // Append mode: add as attachment to existing entry
+                DatabaseAction::appendFile(
+                    $config['db_path'],
+                    $entryId,
+                    $subject,
+                    $filename,
+                    $file['size'],
+                    $filePath,
+                    $body,
+                    $ctx
+                );
+                $insertId = $entryId;
+            } else {
+                // Normal mode: create new entry
+                $insertId = DatabaseAction::saveFile(
+                    $config['db_path'],
+                    $subject,
+                    $filename,
+                    $file['size'],
+                    $filePath,
+                    $ctx,
+                    $body
+                );
+            }
         }
 
         // -- Email action ----------------------------------
