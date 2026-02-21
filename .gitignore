@@ -1,6 +1,9 @@
 /vendor/
 config/app.php
-/uploads/
+/uploads/*
+!/uploads/.htaccess
+/data/*
+!/data/.htaccess
 composer.lock
 .idea/
 .vscode/
