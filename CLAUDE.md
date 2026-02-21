@@ -11,9 +11,9 @@ Single-endpoint PHP app (`share.php`) using PSR-4 autoloading via Composer.
 | Namespace | Directory | Classes |
 |---|---|---|
 | `App` | `inc/` | `WebhookHandler`, `RequestContext`, `AuthValidator` |
-| `App\Handlers` | `inc/handlers/` | `FileHandler`, `TextHandler` |
-| `App\Actions` | `inc/actions/` | `EmailAction`, `StorageAction` |
-| `App\Formatters` | `inc/formatters/` | `LogarteFormatter`, `MarkdownFormatter` |
+| `App\Handlers` | `inc/Handlers/` | `FileHandler`, `TextHandler` |
+| `App\Actions` | `inc/Actions/` | `EmailAction`, `StorageAction` |
+| `App\Formatters` | `inc/Formatters/` | `LogarteFormatter`, `MarkdownFormatter` |
 
 ### Request Flow
 

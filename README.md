@@ -52,6 +52,7 @@ Edit `config/app.php` (copy from `config/app.php.example`):
 | `max_file_size` | int | `10485760` (10 MB) | Max file upload size in bytes |
 | `max_text_size` | int | `1048576` (1 MB) | Max text payload size in bytes |
 | `response_message` | string | `'OK'` | Response body sent back to the app |
+| `debug` | bool | `false` | Show detailed error messages in HTTP responses |
 
 If using storage, ensure the `storage_path` directory is writable by the web server (`chmod 755`).
 
@@ -68,13 +69,13 @@ media-file-explorer-share/
 │   ├── WebhookHandler.php              # Orchestrator — validates & dispatches
 │   ├── AuthValidator.php               # Basic Auth credential check
 │   ├── RequestContext.php              # DTO: ip, user-agent, time, domain
-│   ├── handlers/
+│   ├── Handlers/
 │   │   ├── FileHandler.php            # $_FILES processing & dispatch
 │   │   └── TextHandler.php            # php://input processing & dispatch
-│   ├── actions/
+│   ├── Actions/
 │   │   ├── EmailAction.php            # Email sending (plain, HTML, MIME)
 │   │   └── StorageAction.php          # Save files/text to disk
-│   └── formatters/
+│   └── Formatters/
 │       ├── LogarteFormatter.php       # Logarte debug export → HTML
 │       └── MarkdownFormatter.php      # Markdown → HTML for emails
 ├── tools/
