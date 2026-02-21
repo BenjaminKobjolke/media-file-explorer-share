@@ -1,0 +1,8 @@
+/vendor/
+config/app.php
+/uploads/
+composer.lock
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
