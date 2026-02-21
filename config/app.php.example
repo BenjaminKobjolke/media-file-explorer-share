@@ -24,6 +24,14 @@ return [
     'max_file_size' => 10 * 1024 * 1024,   // 10 MB
     'max_text_size' =>  1 * 1024 * 1024,   //  1 MB
 
+    // -- SQLite database (metadata log) --------------------------------------
+    'db_enabled' => false,
+    'db_path'    => __DIR__ . '/../data/share.sqlite',
+
+    // -- API (read-only JSON endpoint) ----------------------------------------
+    'api_enabled'      => false,
+    'api_auth_enabled' => true,    // reuses auth_username / auth_password
+
     // -- Response sent back to the app ---------------------------------------
     'response_message' => 'OK',
 
