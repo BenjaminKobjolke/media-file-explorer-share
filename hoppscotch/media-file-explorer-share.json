@@ -175,11 +175,11 @@
       },
       "body": {
         "contentType": "application/json",
-        "body": "{\n    \"entry_id\": 1,\n    \"text_or_url\": \"This is an additional note appended to entry 1.\"\n}"
+        "body": "{\n    \"_id\": 1,\n    \"text_or_url\": \"This is an additional note appended to entry 1.\"\n}"
       },
       "requestVariables": [],
       "responses": {},
-      "description": "Append text to an existing entry as an attachment. Send entry_id in the JSON body along with the text payload. Returns the parent entry ID. Requires db_enabled=true."
+      "description": "Append text to an existing entry as an attachment. Send _id in the JSON body along with the text payload. Returns the parent entry ID. Requires db_enabled=true."
     },
     {
       "v": "17",
@@ -204,7 +204,7 @@
             "active": true
           },
           {
-            "key": "entry_id",
+            "key": "_id",
             "value": "1",
             "isFile": false,
             "active": true
@@ -219,7 +219,62 @@
       },
       "requestVariables": [],
       "responses": {},
-      "description": "Append a file to an existing entry as an attachment. Send entry_id as a form field along with the file. Extra fields (like description) are stored as JSON body. Returns the parent entry ID. Requires db_enabled=true."
+      "description": "Append a file to an existing entry as an attachment. Send _id as a form field along with the file. Extra fields (like description) are stored as JSON body. Returns the parent entry ID. Requires db_enabled=true."
+    },
+    {
+      "v": "17",
+      "name": "Share text (no email)",
+      "method": "POST",
+      "endpoint": "<<baseURL>>share.php",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n    \"text_or_url\": \"This text is saved but no email is sent.\",\n    \"_email\": false\n}"
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Share a text payload with email suppressed. The _email: false field prevents the email action even when email_enabled is true in config."
+    },
+    {
+      "v": "17",
+      "name": "Share file (no email)",
+      "method": "POST",
+      "endpoint": "<<baseURL>>share.php",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": "multipart/form-data",
+        "body": [
+          {
+            "key": "file",
+            "value": "",
+            "isFile": true,
+            "active": true
+          },
+          {
+            "key": "_email",
+            "value": "false",
+            "isFile": false,
+            "active": true
+          }
+        ]
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Upload a file with email suppressed. The _email=false form field prevents the email action even when email_enabled is true in config."
     },
     {
       "v": "17",

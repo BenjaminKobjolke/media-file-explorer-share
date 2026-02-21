@@ -40,34 +40,45 @@ class TextHandler
         $subject     = "Webhook payload {$ctx->time}";
         $htmlMessage = null;
         $decoded     = null;
-        $entryId     = null;
+        $entryId       = null;
+        $emailOverride = null;
 
         // -- JSON with text_or_url field -------------------
         if (stripos($contentType, 'application/json') !== false) {
             $decoded = json_decode($body, true);
 
-            // -- Extract entry_id for append mode ----------
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && isset($decoded['entry_id'])) {
-                $entryId = (int) $decoded['entry_id'];
-                unset($decoded['entry_id']);
-                // Re-encode body without entry_id
-                $body = json_encode($decoded, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            // -- Extract reserved _-prefixed fields --------
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                if (isset($decoded['_id'])) {
+                    $entryId = (int) $decoded['_id'];
+                    unset($decoded['_id']);
+                }
+                if (array_key_exists('_email', $decoded)) {
+                    $emailOverride = $decoded['_email'];
+                    unset($decoded['_email']);
+                }
+                // Re-encode body without reserved fields
+                if ($entryId !== null || $emailOverride !== null) {
+                    $body = json_encode($decoded, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                }
 
-                if (!empty($config['db_enabled'])) {
-                    $parent = DatabaseAction::getById($config['db_path'], $entryId);
-                    if ($parent === null) {
-                        http_response_code(404);
-                        exit('Parent entry not found');
+                if ($entryId !== null) {
+                    if (!empty($config['db_enabled'])) {
+                        $parent = DatabaseAction::getById($config['db_path'], $entryId);
+                        if ($parent === null) {
+                            http_response_code(404);
+                            exit('Parent entry not found');
+                        }
+                    } else {
+                        http_response_code(400);
+                        exit('_id requires db_enabled');
                     }
-                } else {
-                    http_response_code(400);
-                    exit('entry_id requires db_enabled');
                 }
             }
 
             if (json_last_error() === JSON_ERROR_NONE && isset($decoded['text_or_url'])) {
                 $sharedText  = $decoded['text_or_url'];
-                $extraFields = array_diff_key($decoded, ['text_or_url' => true]);
+                $extraFields = array_diff_key($decoded, ['text_or_url' => true, '_email' => true]);
 
                 // Try Logarte format first
                 $parsed = LogarteFormatter::parse($sharedText);
@@ -121,7 +132,8 @@ class TextHandler
         }
 
         // -- Email action ----------------------------------
-        if ($config['email_enabled']) {
+        $shouldEmail = $config['email_enabled'] && $emailOverride !== false;
+        if ($shouldEmail) {
             if ($htmlMessage !== null) {
                 EmailAction::sendHtmlEmail(
                     $config['email_to'],

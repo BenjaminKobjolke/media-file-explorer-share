@@ -55,8 +55,14 @@ class FileHandler
             exit('Failed to read uploaded file');
         }
 
-        // -- Append mode: check for entry_id ---------------
-        $entryId = isset($_POST['entry_id']) ? (int) $_POST['entry_id'] : null;
+        // -- Extract reserved _-prefixed fields -------------
+        $entryId = isset($_POST['_id']) ? (int) $_POST['_id'] : null;
+        $emailOverride = null;
+        if (isset($_POST['_email'])) {
+            $raw = $_POST['_email'];
+            $emailOverride = ($raw === 'false' || $raw === '0' || $raw === '') ? false : $raw;
+        }
+
         if ($entryId !== null && !empty($config['db_enabled'])) {
             $parent = DatabaseAction::getById($config['db_path'], $entryId);
             if ($parent === null) {
@@ -65,11 +71,11 @@ class FileHandler
             }
         } elseif ($entryId !== null) {
             http_response_code(400);
-            exit('entry_id requires db_enabled');
+            exit('_id requires db_enabled');
         }
 
         // -- Capture extra POST fields as JSON body --------
-        $extraFields = array_diff_key($_POST, ['file' => true, 'entry_id' => true]);
+        $extraFields = array_diff_key($_POST, ['file' => true, '_id' => true, '_email' => true]);
         $body = !empty($extraFields) ? json_encode($extraFields, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null;
 
         // -- Build metadata HTML --------------------------
@@ -127,7 +133,8 @@ class FileHandler
         }
 
         // -- Email action ----------------------------------
-        if ($config['email_enabled']) {
+        $shouldEmail = $config['email_enabled'] && $emailOverride !== false;
+        if ($shouldEmail) {
             EmailAction::sendFileEmail(
                 $config['email_to'],
                 $subject,

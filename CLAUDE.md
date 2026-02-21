@@ -23,17 +23,26 @@ PHP app with two entry points using PSR-4 autoloading via Composer:
 1. `share.php` loads config + Composer autoloader, creates `WebhookHandler`
 2. `WebhookHandler` validates POST method and optional Basic Auth
 3. Routes to `FileHandler` (multipart file upload) or `TextHandler` (JSON/text)
-4. Handlers check for `entry_id` — if present, validates parent entry exists and appends as attachment; otherwise creates a new entry
+4. Handlers check for `_id` — if present, validates parent entry exists and appends as attachment; otherwise creates a new entry
 5. Handlers call `StorageAction`, `DatabaseAction`, and/or `EmailAction` based on config
 6. Returns the parent entry ID (append mode) or the new entry ID (when `db_enabled`) or the configured response message with HTTP 200
 
+#### Reserved Fields
+
+Fields prefixed with `_` are internal control fields stripped before storage:
+
+| Field | Type | Effect |
+|---|---|---|
+| `_id` | int | Append mode — attach to existing entry instead of creating new one |
+| `_email` | bool | `false` suppresses email for this request even when `email_enabled` is on |
+
 #### Append Mode
 
-Send `entry_id` with your POST to attach text/files to an existing entry:
-- **Text**: include `"entry_id": 1` in the JSON body alongside other fields
-- **File**: include `entry_id=1` as a form field alongside the file upload
+Send `_id` with your POST to attach text/files to an existing entry:
+- **Text**: include `"_id": 1` in the JSON body alongside other fields
+- **File**: include `_id=1` as a form field alongside the file upload
 - Extra form fields sent with file uploads are captured as JSON in the attachment's `body` column
-- Returns the parent `entry_id` (not a new ID) so IDs remain sequential
+- Returns the parent `_id` (not a new ID) so IDs remain sequential
 
 #### Read API (`api.php`)
 
