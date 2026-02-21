@@ -1,0 +1,29 @@
+<?php
+/**
+ * Application Configuration
+ *
+ * Copy this file to app.php and adjust values for your environment.
+ * app.php is gitignored and will not be committed.
+ */
+
+return [
+    // -- Email ---------------------------------------------------------------
+    'email_enabled'  => true,
+    'email_to'       => 'you@example.com',
+
+    // -- File storage on server ----------------------------------------------
+    'storage_enabled' => false,
+    'storage_path'    => __DIR__ . '/../uploads',
+
+    // -- Basic Auth (validate incoming requests) -----------------------------
+    'auth_enabled'  => false,
+    'auth_username' => 'user',
+    'auth_password' => 'pass',
+
+    // -- Size limits ---------------------------------------------------------
+    'max_file_size' => 10 * 1024 * 1024,   // 10 MB
+    'max_text_size' =>  1 * 1024 * 1024,   //  1 MB
+
+    // -- Response sent back to the app ---------------------------------------
+    'response_message' => 'OK',
+];

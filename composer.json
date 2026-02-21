@@ -1,0 +1,14 @@
+{
+    "name": "xida/media-file-explorer-share",
+    "description": "Server-side webhook receiver for Media File Explorer",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": "^8.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "inc/"
+        }
+    }
+}

@@ -1,4 +1,12 @@
 <?php
+declare(strict_types=1);
+
+namespace App\Handlers;
+
+use App\Actions\EmailAction;
+use App\Actions\StorageAction;
+use App\RequestContext;
+
 /**
  * Handles multipart/form-data file uploads.
  */
@@ -15,7 +23,7 @@ class FileHandler
     {
         $file = $_FILES['file'];
 
-        // ── Validate upload error code ────────────────────
+        // -- Validate upload error code --------------------
         if ($file['error'] !== UPLOAD_ERR_OK) {
             $errorMessages = [
                 UPLOAD_ERR_INI_SIZE   => 'File exceeds server upload_max_filesize',
@@ -31,7 +39,7 @@ class FileHandler
             exit("Upload error: {$msg}");
         }
 
-        // ── Size limit ────────────────────────────────────
+        // -- Size limit ------------------------------------
         if ($file['size'] > $config['max_file_size']) {
             $limitMB = round($config['max_file_size'] / (1024 * 1024), 1);
             http_response_code(413);
@@ -46,7 +54,7 @@ class FileHandler
             exit('Failed to read uploaded file');
         }
 
-        // ── Build metadata HTML ───────────────────────────
+        // -- Build metadata HTML --------------------------
         $metaHtml = "<p><strong>Time:</strong> {$ctx->time}</p>"
             . "<p><strong>IP:</strong> {$ctx->ip}</p>"
             . "<p><strong>User-Agent:</strong> {$ctx->ua}</p>"
@@ -60,7 +68,7 @@ class FileHandler
 
         $subject = "File: " . mb_substr($filename, 0, 80);
 
-        // ── Storage action ────────────────────────────────
+        // -- Storage action --------------------------------
         if ($config['storage_enabled']) {
             StorageAction::saveFile(
                 $config['storage_path'],
@@ -69,7 +77,7 @@ class FileHandler
             );
         }
 
-        // ── Email action ──────────────────────────────────
+        // -- Email action ----------------------------------
         if ($config['email_enabled']) {
             EmailAction::sendFileEmail(
                 $config['email_to'],

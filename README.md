@@ -10,11 +10,11 @@ This PHP endpoint receives shared text and files from the app's **API Integratio
 - **File storage** — save uploaded files and text payloads to a server directory
 - **Basic Auth** — optional username/password authentication for incoming requests
 - **Configurable limits** — set max file and text payload sizes
-- **Zero dependencies** — plain PHP, no frameworks or Composer packages required
 
 ## Requirements
 
-- PHP 7.4+
+- PHP 8.4+
+- [Composer](https://getcomposer.org/)
 - `mail()` function enabled (if using email notifications)
 - `php.ini` settings for file uploads:
   - `upload_max_filesize` >= 10M
@@ -22,29 +22,30 @@ This PHP endpoint receives shared text and files from the app's **API Integratio
 
 ## Quick Start
 
-1. **Upload** the project folder to your web server
-2. **Edit** `share.php` — set your `email_to` address and enable/disable features:
-   ```php
-   $config = [
-     'email_enabled'  => true,
-     'email_to'       => 'you@example.com',
-     'storage_enabled' => false,
-     'auth_enabled'   => false,
-   ];
+1. **Clone** the repository and install dependencies:
+   ```bash
+   git clone <repo-url>
+   cd media-file-explorer-share
+   composer install
    ```
+2. **Copy** the config template and edit it:
+   ```bash
+   cp config/app.php.example config/app.php
+   ```
+   Set your `email_to` address and enable/disable features in `config/app.php`.
 3. **Configure the app** — open Media File Explorer, go to **Settings > API Integration**, and set the endpoint URL to `https://yourdomain.com/path/to/share.php`
 4. **Test** — share a file or text from the app and check your inbox
 
 ## Configuration Reference
 
-Edit the `$config` array in `share.php`:
+Edit `config/app.php` (copy from `config/app.php.example`):
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `email_enabled` | bool | `true` | Send payloads via email |
-| `email_to` | string | `'youremail@domain.com'` | Recipient email address |
+| `email_to` | string | `'you@example.com'` | Recipient email address |
 | `storage_enabled` | bool | `false` | Save payloads to disk |
-| `storage_path` | string | `__DIR__ . '/uploads'` | Directory for stored files/texts |
+| `storage_path` | string | `__DIR__ . '/../uploads'` | Directory for stored files/texts |
 | `auth_enabled` | bool | `false` | Require Basic Auth on requests |
 | `auth_username` | string | `'user'` | Expected Basic Auth username |
 | `auth_password` | string | `'pass'` | Expected Basic Auth password |
@@ -58,27 +59,34 @@ If using storage, ensure the `storage_path` directory is writable by the web ser
 
 ```
 media-file-explorer-share/
-├── share.php                           # Config + bootstrap (edit this)
+├── share.php                           # Bootstrap (loads config + autoloader)
+├── composer.json                       # Composer config with PSR-4 autoloading
+├── config/
+│   ├── app.php.example                # Config template (committed)
+│   └── app.php                        # Local config (gitignored)
+├── inc/
+│   ├── WebhookHandler.php              # Orchestrator — validates & dispatches
+│   ├── AuthValidator.php               # Basic Auth credential check
+│   ├── RequestContext.php              # DTO: ip, user-agent, time, domain
+│   ├── handlers/
+│   │   ├── FileHandler.php            # $_FILES processing & dispatch
+│   │   └── TextHandler.php            # php://input processing & dispatch
+│   ├── actions/
+│   │   ├── EmailAction.php            # Email sending (plain, HTML, MIME)
+│   │   └── StorageAction.php          # Save files/text to disk
+│   └── formatters/
+│       ├── LogarteFormatter.php       # Logarte debug export → HTML
+│       └── MarkdownFormatter.php      # Markdown → HTML for emails
+├── tools/
+│   └── tests.bat                      # Test runner placeholder
 ├── README.md
-├── LICENSE
-└── inc/
-    ├── WebhookHandler.php              # Orchestrator — validates & dispatches
-    ├── AuthValidator.php               # Basic Auth credential check
-    ├── RequestContext.php              # DTO: ip, user-agent, time, domain
-    ├── handlers/
-    │   ├── FileHandler.php            # $_FILES processing & dispatch
-    │   └── TextHandler.php            # php://input processing & dispatch
-    ├── actions/
-    │   ├── EmailAction.php            # Email sending (plain, HTML, MIME)
-    │   └── StorageAction.php          # Save files/text to disk
-    └── formatters/
-        ├── LogarteFormatter.php       # Logarte debug export → HTML
-        └── MarkdownFormatter.php      # Markdown → HTML for emails
+├── CLAUDE.md
+└── LICENSE
 ```
 
 ## How It Works
 
-1. `share.php` defines the config and bootstraps `WebhookHandler`
+1. `share.php` loads the config and bootstraps `WebhookHandler` via Composer autoloading
 2. `WebhookHandler` validates the request method (POST only) and auth credentials
 3. File uploads are routed to `FileHandler`, text/JSON payloads to `TextHandler`
 4. Each handler calls `StorageAction` and/or `EmailAction` based on config

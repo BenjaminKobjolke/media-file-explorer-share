@@ -1,4 +1,10 @@
 <?php
+declare(strict_types=1);
+
+namespace App\Formatters;
+
+use App\RequestContext;
+
 /**
  * Markdown-to-HTML conversion and subject extraction for email formatting.
  */

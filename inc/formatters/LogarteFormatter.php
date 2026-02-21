@@ -1,4 +1,10 @@
 <?php
+declare(strict_types=1);
+
+namespace App\Formatters;
+
+use App\RequestContext;
+
 /**
  * Parse and format Logarte debug-console exports into HTML emails.
  */

@@ -1,4 +1,10 @@
 <?php
+declare(strict_types=1);
+
+namespace App\Actions;
+
+use App\RequestContext;
+
 /**
  * Save uploaded files or text payloads to disk.
  */

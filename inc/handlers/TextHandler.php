@@ -1,4 +1,14 @@
 <?php
+declare(strict_types=1);
+
+namespace App\Handlers;
+
+use App\Actions\EmailAction;
+use App\Actions\StorageAction;
+use App\Formatters\LogarteFormatter;
+use App\Formatters\MarkdownFormatter;
+use App\RequestContext;
+
 /**
  * Handles text/JSON payloads (non-file requests).
  */
@@ -19,7 +29,7 @@ class TextHandler
             exit('Empty body');
         }
 
-        // ── Size limit ────────────────────────────────────
+        // -- Size limit ------------------------------------
         if (strlen($body) > $config['max_text_size']) {
             http_response_code(413);
             exit('Payload too large');
@@ -30,7 +40,7 @@ class TextHandler
         $htmlMessage = null;
         $decoded     = null;
 
-        // ── JSON with text_or_url field ───────────────────
+        // -- JSON with text_or_url field -------------------
         if (stripos($contentType, 'application/json') !== false) {
             $decoded = json_decode($body, true);
 
@@ -56,7 +66,7 @@ class TextHandler
             }
         }
 
-        // ── Storage action ────────────────────────────────
+        // -- Storage action --------------------------------
         if ($config['storage_enabled']) {
             StorageAction::saveText(
                 $config['storage_path'],
@@ -65,7 +75,7 @@ class TextHandler
             );
         }
 
-        // ── Email action (fields-only already handled above) ──
+        // -- Email action ----------------------------------
         if ($config['email_enabled']) {
             if ($htmlMessage !== null) {
                 EmailAction::sendHtmlEmail(
