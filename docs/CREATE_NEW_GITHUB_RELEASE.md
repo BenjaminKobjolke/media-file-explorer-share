@@ -8,7 +8,9 @@
 
 ## Runtime Files (included in release zip)
 
-- `share.php` - application entry point
+- `share.php` - webhook receiver entry point
+- `api.php` - read-only JSON API entry point
+- `.htaccess` - clean URL rewrite rules
 - `composer.json` - dependency manifest
 - `composer.lock` - locked dependency versions
 - `inc/` - application source code (all subdirectories)
@@ -50,7 +52,7 @@ tools\github-release.bat 2.0.0
 1. Reads version from `VERSION` file (or uses the CLI argument if provided)
 2. Checks that `gh` and `composer` are available
 3. Creates a temporary staging directory
-4. Copies runtime files (`share.php`, `composer.json`, `composer.lock`, `README.md`, `LICENSE`, `inc/`, `config/app.php.example`)
+4. Copies runtime files (`share.php`, `api.php`, `.htaccess`, `composer.json`, `composer.lock`, `README.md`, `LICENSE`, `inc/`, `config/app.php.example`)
 5. Runs `call composer install --no-dev --optimize-autoloader` in the staging directory
 6. Creates a zip archive using `call tar -a -cf` (Windows 10+ built-in)
 7. Creates a GitHub release with `call gh release create v<VERSION>` and uploads the zip

@@ -61,6 +61,8 @@ mkdir "%STAGING_DIR%"
 REM --- Copy runtime files ---
 echo [2/6] Copying runtime files...
 copy "share.php" "%STAGING_DIR%\" >nul
+copy "api.php" "%STAGING_DIR%\" >nul
+copy ".htaccess" "%STAGING_DIR%\" >nul
 copy "composer.json" "%STAGING_DIR%\" >nul
 copy "composer.lock" "%STAGING_DIR%\" >nul
 copy "README.md" "%STAGING_DIR%\" >nul
