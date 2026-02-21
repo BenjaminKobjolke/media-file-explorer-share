@@ -87,7 +87,7 @@ REM --- Create zip ---
 echo [4/6] Creating %ZIP_NAME%...
 if exist "%ZIP_NAME%" del "%ZIP_NAME%"
 pushd "%STAGING_DIR%"
-call tar -a -cf "%~dp0..\%ZIP_NAME%" *
+call tar -a -cf "%~dp0..\%ZIP_NAME%" --force-local *
 if errorlevel 1 (
     popd
     echo ERROR: Failed to create zip archive.
