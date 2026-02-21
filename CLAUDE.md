@@ -40,7 +40,7 @@ cp config/app.php.example config/app.php   # then edit with your values
 
 ## Conventions
 
-- PHP 8.4+ with `declare(strict_types=1)` in every file
+- PHP 7.4+ with `declare(strict_types=1)` in every file
 - PSR-4 autoloading: `App\` maps to `inc/`
 - Static handler/action/formatter methods (no DI container)
 - Config passed as plain array from `config/app.php`

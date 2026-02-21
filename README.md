@@ -13,7 +13,7 @@ This PHP endpoint receives shared text and files from the app's **API Integratio
 
 ## Requirements
 
-- PHP 8.4+
+- PHP 7.4+
 - [Composer](https://getcomposer.org/)
 - `mail()` function enabled (if using email notifications)
 - `php.ini` settings for file uploads:
