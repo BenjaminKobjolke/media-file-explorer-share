@@ -262,6 +262,11 @@ class DatabaseAction
             }
         }
 
+        // Add file_url for file-type entries with stored files
+        if ($entry['type'] === 'file' && $entry['file_path'] !== null) {
+            $entry['file_url'] = $baseUrl . '/entries/' . $entry['id'] . '/file';
+        }
+
         // Strip file_path from response
         unset($entry['file_path']);
 

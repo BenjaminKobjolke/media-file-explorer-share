@@ -190,6 +190,58 @@ $app->post('/entries', function (Request $request, Response $response) use ($che
     return $lookupEntry((int) $body['id'], $response);
 });
 
+$app->get('/entries/{id:[0-9]+}/file', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    // Lookup entry
+    $entry = DatabaseAction::getById($config['db_path'], (int) $args['id']);
+    if ($entry === null) {
+        $response->getBody()->write((string) json_encode(['error' => 'Entry not found']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    if ($entry['type'] !== 'file' || $entry['file_path'] === null) {
+        $response->getBody()->write((string) json_encode(['error' => 'No file stored for this entry']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    // Path traversal protection
+    $realPath = realpath($entry['file_path']);
+    $storagePath = realpath($config['storage_path']);
+    if ($realPath === false || $storagePath === false || strpos($realPath, $storagePath) !== 0) {
+        $response->getBody()->write((string) json_encode(['error' => 'File not accessible']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    // Serve the file
+    $finfo = new \finfo(FILEINFO_MIME_TYPE);
+    $mimeType = $finfo->file($realPath) ?: 'application/octet-stream';
+    $fileSize = filesize($realPath);
+    $filename = $entry['filename'] ?? basename($realPath);
+
+    $stream = fopen($realPath, 'rb');
+    $body = new \Slim\Psr7\Stream($stream);
+
+    return $response
+        ->withHeader('Content-Type', $mimeType)
+        ->withHeader('Content-Length', (string) $fileSize)
+        ->withHeader('Content-Disposition', 'inline; filename="' . addslashes($filename) . '"')
+        ->withBody($body);
+});
+
 $app->get('/files/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $config): Response {
     $dbResponse = $checkDb($response);
     if ($dbResponse !== null) {
