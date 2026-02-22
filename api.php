@@ -27,19 +27,27 @@ if (!file_exists($configFile)) {
 require $autoloadFile;
 $config = require $configFile;
 
+// -- Version info ------------------------------------------------------------
+
+$versionInfo = [];
+$versionFile = __DIR__ . '/VERSION';
+if (file_exists($versionFile)) {
+    $versionInfo['_version'] = trim((string) file_get_contents($versionFile));
+}
+$deployFile = __DIR__ . '/deploy.ver';
+if (file_exists($deployFile)) {
+    $deployId = trim((string) file_get_contents($deployFile));
+    if ($deployId !== '') {
+        $versionInfo['_deploy_id'] = $deployId;
+    }
+}
+
 // -- Feature gate ------------------------------------------------------------
 
 if (empty($config['api_enabled'])) {
     http_response_code(403);
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'API is disabled']);
-    exit;
-}
-
-if (empty($config['db_enabled'])) {
-    http_response_code(503);
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Database is disabled']);
+    echo json_encode(array_merge($versionInfo, ['error' => 'API is disabled']));
     exit;
 }
 
@@ -78,6 +86,31 @@ $errorMiddleware->setDefaultErrorHandler(function (
         ->withHeader('Content-Type', 'application/json');
 });
 
+// Version middleware (outermost — enriches all JSON responses with version info)
+if (!empty($versionInfo)) {
+    $app->add(function (Request $request, $handler) use ($versionInfo): Response {
+        $response = $handler->handle($request);
+        $contentType = $response->getHeaderLine('Content-Type');
+        if (strpos($contentType, 'application/json') === false) {
+            return $response;
+        }
+        $body = (string) $response->getBody();
+        $data = json_decode($body, true);
+        if (!is_array($data)) {
+            return $response;
+        }
+        if (array_values($data) === $data) {
+            $enriched = array_merge($versionInfo, ['data' => $data]);
+        } else {
+            $enriched = array_merge($versionInfo, $data);
+        }
+        $stream = fopen('php://temp', 'r+');
+        fwrite($stream, (string) json_encode($enriched));
+        rewind($stream);
+        return $response->withBody(new \Slim\Psr7\Stream($stream));
+    });
+}
+
 // -- Route helpers -----------------------------------------------------------
 
 $checkAuth = function (Request $request, Response $response) use ($config): ?Response {
@@ -91,6 +124,16 @@ $checkAuth = function (Request $request, Response $response) use ($config): ?Res
                 ->withHeader('Content-Type', 'application/json')
                 ->withHeader('WWW-Authenticate', 'Basic realm="API"');
         }
+    }
+    return null;
+};
+
+$checkDb = function (Response $response) use ($config): ?Response {
+    if (empty($config['db_enabled'])) {
+        $response->getBody()->write((string) json_encode(['error' => 'Database is disabled']));
+        return $response
+            ->withStatus(503)
+            ->withHeader('Content-Type', 'application/json');
     }
     return null;
 };
@@ -114,7 +157,11 @@ $lookupEntry = function (int $id, Response $response) use ($config, $basePath): 
 
 // -- Routes ------------------------------------------------------------------
 
-$app->get('/entries/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $lookupEntry): Response {
+$app->get('/entries/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $lookupEntry): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
     $authResponse = $checkAuth($request, $response);
     if ($authResponse !== null) {
         return $authResponse;
@@ -122,7 +169,11 @@ $app->get('/entries/{id:[0-9]+}', function (Request $request, Response $response
     return $lookupEntry((int) $args['id'], $response);
 });
 
-$app->post('/entries', function (Request $request, Response $response) use ($checkAuth, $lookupEntry): Response {
+$app->post('/entries', function (Request $request, Response $response) use ($checkAuth, $checkDb, $lookupEntry): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
     $authResponse = $checkAuth($request, $response);
     if ($authResponse !== null) {
         return $authResponse;
@@ -139,7 +190,11 @@ $app->post('/entries', function (Request $request, Response $response) use ($che
     return $lookupEntry((int) $body['id'], $response);
 });
 
-$app->get('/files/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $config): Response {
+$app->get('/files/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
     $authResponse = $checkAuth($request, $response);
     if ($authResponse !== null) {
         return $authResponse;
@@ -185,6 +240,23 @@ $app->get('/files/{id:[0-9]+}', function (Request $request, Response $response, 
         ->withHeader('Content-Length', (string) $fileSize)
         ->withHeader('Content-Disposition', 'inline; filename="' . addslashes($filename) . '"')
         ->withBody($body);
+});
+
+$app->get('/fields', function (Request $request, Response $response) : Response {
+    $fields = [
+        [
+            'name' => '_id',
+            'type' => 'int',
+            'description' => 'Append mode — attach to an existing entry instead of creating a new one',
+        ],
+        [
+            'name' => '_email',
+            'type' => 'bool',
+            'description' => 'Set to false to suppress email notification for this request',
+        ],
+    ];
+    $response->getBody()->write((string) json_encode($fields));
+    return $response->withHeader('Content-Type', 'application/json');
 });
 
 $app->run();

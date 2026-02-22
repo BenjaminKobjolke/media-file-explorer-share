@@ -46,12 +46,13 @@ Send `_id` with your POST to attach text/files to an existing entry:
 
 #### Read API (`api.php`)
 
-1. `api.php` loads config + Composer autoloader, gates on `api_enabled` and `db_enabled`
+1. `api.php` loads config + Composer autoloader, gates on `api_enabled`
 2. Creates a Slim 4 app with JSON error handling
-3. `GET /entries/{id}` — optional Basic Auth check, then `DatabaseAction::getByIdWithAttachments()` returns entry with nested attachments array and `file_url` links
-4. `POST /entries` with `{"id": 1}` body — alternative to `GET /entries/{id}`, same auth and response; returns 400 if `id` is missing
-5. `GET /files/{id}` — optional Basic Auth check, serves attachment file from disk with `realpath()` traversal protection
-6. Returns JSON response (200 with entry data, 400 if missing id, 401 if unauthorized, 404 if not found)
+3. `GET /entries/{id}` — requires `db_enabled`, optional Basic Auth, then `DatabaseAction::getByIdWithAttachments()` returns entry with nested attachments array and `file_url` links
+4. `POST /entries` with `{"id": 1}` body — requires `db_enabled`, alternative to `GET /entries/{id}`, same auth and response; returns 400 if `id` is missing
+5. `GET /files/{id}` — requires `db_enabled`, optional Basic Auth, serves attachment file from disk with `realpath()` traversal protection
+6. `GET /fields` — no auth, no `db_enabled` required; returns reserved field metadata
+7. All JSON responses include `_version` (from `VERSION` file) and optionally `_deploy_id` (from `deploy.ver`) as top-level keys; array responses are wrapped in a `{"_version": ..., "data": [...]}` envelope
 
 ##### Clean URLs
 
@@ -80,3 +81,4 @@ cp config/app.php.example config/app.php   # then edit with your values
 - PSR-4 autoloading: `App\` maps to `inc/`
 - Static handler/action/formatter methods (no DI container)
 - Config passed as plain array from `config/app.php`
+- Every endpoint must have a corresponding Hoppscotch request in `hoppscotch/` and a documentation file in `docs/endpoints/`
