@@ -1,7 +1,7 @@
 [{
   "v": 11,
-  "id": "cmfs0001a001ms001folder01",
-  "name": "media-file-explorer-share",
+  "id": "cmfs0001a001ms001webhook01",
+  "name": "Webhook (share.php)",
   "folders": [],
   "requests": [
     {
@@ -275,134 +275,6 @@
       "requestVariables": [],
       "responses": {},
       "description": "Upload a file with email suppressed. The _email=false form field prevents the email action even when email_enabled is true in config."
-    },
-    {
-      "v": "17",
-      "name": "API: Get entry by ID",
-      "method": "GET",
-      "endpoint": "<<baseURL>>api.php/entries/1",
-      "params": [],
-      "headers": [],
-      "preRequestScript": "",
-      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response is JSON with id and attachments\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body.id).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n  pw.expect(Array.isArray(body.attachments)).toBe(true);\n});",
-      "auth": {
-        "authType": "none",
-        "authActive": true
-      },
-      "body": {
-        "contentType": null,
-        "body": null
-      },
-      "requestVariables": [],
-      "responses": {},
-      "description": "Fetch a database entry by ID with its attachments via the read-only API. Returns the entry data plus an attachments array with file_url for file-type attachments. Requires api_enabled=true and db_enabled=true in config/app.php. Clean URL alternative: <<baseURL>>api/entries/1"
-    },
-    {
-      "v": "17",
-      "name": "API: Get entry by ID (POST body)",
-      "method": "POST",
-      "endpoint": "<<baseURL>>api.php/entries",
-      "params": [],
-      "headers": [],
-      "preRequestScript": "",
-      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response is JSON with id and attachments\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body.id).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n  pw.expect(Array.isArray(body.attachments)).toBe(true);\n});",
-      "auth": {
-        "authType": "none",
-        "authActive": true
-      },
-      "body": {
-        "contentType": "application/json",
-        "body": "{\n    \"id\": 1\n}"
-      },
-      "requestVariables": [],
-      "responses": {},
-      "description": "Fetch a database entry by sending the ID in a JSON POST body. Alternative to GET /entries/{id}. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/entries"
-    },
-    {
-      "v": "17",
-      "name": "API: Get entry by ID (with auth)",
-      "method": "GET",
-      "endpoint": "<<baseURL>>api.php/entries/1",
-      "params": [],
-      "headers": [],
-      "preRequestScript": "",
-      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response is JSON with id field\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body.id).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n});",
-      "auth": {
-        "authType": "basic",
-        "authActive": true,
-        "username": "<<authUsername>>",
-        "password": "<<authPassword>>"
-      },
-      "body": {
-        "contentType": null,
-        "body": null
-      },
-      "requestVariables": [],
-      "responses": {},
-      "description": "Fetch a database entry by ID with Basic Auth. Requires api_enabled=true, db_enabled=true, and api_auth_enabled=true in config/app.php. Clean URL alternative: <<baseURL>>api/entries/1"
-    },
-    {
-      "v": "17",
-      "name": "API: Download attachment file",
-      "method": "GET",
-      "endpoint": "<<baseURL>>api.php/files/1",
-      "params": [],
-      "headers": [],
-      "preRequestScript": "",
-      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has Content-Disposition header\", () => {\n  const cd = pw.response.headers[\"content-disposition\"] || pw.response.headers[\"Content-Disposition\"];\n  pw.expect(cd).toBeDefined();\n});",
-      "auth": {
-        "authType": "none",
-        "authActive": true
-      },
-      "body": {
-        "contentType": null,
-        "body": null
-      },
-      "requestVariables": [],
-      "responses": {},
-      "description": "Download a file attachment by its attachment ID. Returns the file with correct Content-Type and Content-Disposition headers. Requires api_enabled=true, db_enabled=true, and storage_enabled=true. Clean URL alternative: <<baseURL>>api/files/1"
-    },
-    {
-      "v": "17",
-      "name": "Error: empty body",
-      "method": "POST",
-      "endpoint": "<<baseURL>>share.php",
-      "params": [],
-      "headers": [],
-      "preRequestScript": "",
-      "testScript": "pw.test(\"Status code is 400\", () => {\n  pw.expect(pw.response.status).toBe(400);\n});\n\npw.test(\"Response says empty body\", () => {\n  pw.expect(pw.response.body).toContain(\"Empty body\");\n});",
-      "auth": {
-        "authType": "none",
-        "authActive": true
-      },
-      "body": {
-        "contentType": null,
-        "body": null
-      },
-      "requestVariables": [],
-      "responses": {},
-      "description": "Send an empty POST body. Should return HTTP 400 'Empty body'."
-    },
-    {
-      "v": "17",
-      "name": "Error: GET method not allowed",
-      "method": "GET",
-      "endpoint": "<<baseURL>>share.php",
-      "params": [],
-      "headers": [],
-      "preRequestScript": "",
-      "testScript": "pw.test(\"Status code is 405\", () => {\n  pw.expect(pw.response.status).toBe(405);\n});\n\npw.test(\"Response says method not allowed\", () => {\n  pw.expect(pw.response.body).toContain(\"Method Not Allowed\");\n});",
-      "auth": {
-        "authType": "none",
-        "authActive": true
-      },
-      "body": {
-        "contentType": null,
-        "body": null
-      },
-      "requestVariables": [],
-      "responses": {},
-      "description": "GET request to share.php. Should return HTTP 405 'Method Not Allowed'."
     }
   ],
   "auth": {
@@ -411,5 +283,5 @@
   },
   "headers": [],
   "variables": [],
-  "description": "Media File Explorer Share — webhook endpoint examples for text, file, and error scenarios. When db_enabled is true, successful requests return the new entry ID instead of OK."
+  "description": "Webhook receiver (share.php) — text, file, append, and auth scenarios. When db_enabled is true, successful requests return the new entry ID instead of OK."
 }]

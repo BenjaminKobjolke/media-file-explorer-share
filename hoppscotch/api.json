@@ -1,0 +1,122 @@
+[{
+  "v": 11,
+  "id": "cmfs0001a001ms001apiroute",
+  "name": "Read API (api.php)",
+  "folders": [],
+  "requests": [
+    {
+      "v": "17",
+      "name": "Get entry by ID",
+      "method": "GET",
+      "endpoint": "<<baseURL>>api.php/entries/1",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response is JSON with _version, id and attachments\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(body.id).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n  pw.expect(Array.isArray(body.attachments)).toBe(true);\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Fetch a database entry by ID with its attachments via the read-only API. Returns the entry data plus an attachments array with file_url for file-type attachments. Requires api_enabled=true and db_enabled=true in config/app.php. Clean URL alternative: <<baseURL>>api/entries/1"
+    },
+    {
+      "v": "17",
+      "name": "Get entry by ID (POST body)",
+      "method": "POST",
+      "endpoint": "<<baseURL>>api.php/entries",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response is JSON with _version, id and attachments\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(body.id).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n  pw.expect(Array.isArray(body.attachments)).toBe(true);\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n    \"id\": 1\n}"
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Fetch a database entry by sending the ID in a JSON POST body. Alternative to GET /entries/{id}. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/entries"
+    },
+    {
+      "v": "17",
+      "name": "Get entry by ID (with auth)",
+      "method": "GET",
+      "endpoint": "<<baseURL>>api.php/entries/1",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response is JSON with _version and id field\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(body.id).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Fetch a database entry by ID with Basic Auth. Requires api_enabled=true, db_enabled=true, and api_auth_enabled=true in config/app.php. Clean URL alternative: <<baseURL>>api/entries/1"
+    },
+    {
+      "v": "17",
+      "name": "Download attachment file",
+      "method": "GET",
+      "endpoint": "<<baseURL>>api.php/files/1",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has Content-Disposition header\", () => {\n  const cd = pw.response.headers[\"content-disposition\"] || pw.response.headers[\"Content-Disposition\"];\n  pw.expect(cd).toBeDefined();\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Download a file attachment by its attachment ID. Returns the file with correct Content-Type and Content-Disposition headers. Requires api_enabled=true, db_enabled=true, and storage_enabled=true. Clean URL alternative: <<baseURL>>api/files/1"
+    },
+    {
+      "v": "17",
+      "name": "List reserved fields",
+      "method": "GET",
+      "endpoint": "<<baseURL>>api.php/fields",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has _version and data array\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(Array.isArray(body.data)).toBe(true);\n  pw.expect(body.data.length).toBeGreaterThan(0);\n  pw.expect(body.data[0].name).toBeDefined();\n  pw.expect(body.data[0].type).toBeDefined();\n  pw.expect(body.data[0].description).toBeDefined();\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "List all reserved underscore-prefixed control fields accepted by the webhook. Returns a JSON object with _version, optional _deploy_id, and a data array of field descriptors (name, type, description). Requires api_enabled=true. Does not require db_enabled or authentication. Clean URL alternative: <<baseURL>>api/fields"
+    }
+  ],
+  "auth": {
+    "authType": "inherit",
+    "authActive": true
+  },
+  "headers": [],
+  "variables": [],
+  "description": "Read-only JSON API (api.php) — entry lookup, file download, and field metadata. All JSON responses include _version and optionally _deploy_id."
+}]
