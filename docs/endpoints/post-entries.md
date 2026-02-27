@@ -13,7 +13,7 @@ POST /entries
 
 ## Authentication
 
-Optional Basic Auth, controlled by `api_auth_enabled` in config. Reuses `auth_username` and `auth_password`.
+Optional Basic Auth, controlled by `auth_enabled` in config. Reuses `auth_username` and `auth_password`.
 
 ## Prerequisites
 

@@ -23,7 +23,7 @@ GET /entries?page=1&per_page=20
 
 ## Authentication
 
-Optional Basic Auth, controlled by `api_auth_enabled` in config. Reuses `auth_username` and `auth_password`.
+Optional Basic Auth, controlled by `auth_enabled` in config. Reuses `auth_username` and `auth_password`.
 
 ## Prerequisites
 

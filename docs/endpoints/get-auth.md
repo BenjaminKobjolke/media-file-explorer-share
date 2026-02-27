@@ -27,7 +27,7 @@ Requires `api_enabled` to be `true` in config. Does **not** require `db_enabled`
 
 **Status:** 200
 
-When `api_auth_enabled` is `false`:
+When `auth_enabled` is `false`:
 
 ```json
 {
@@ -36,7 +36,7 @@ When `api_auth_enabled` is `false`:
 }
 ```
 
-When `api_auth_enabled` is `true`:
+When `auth_enabled` is `true`:
 
 ```json
 {

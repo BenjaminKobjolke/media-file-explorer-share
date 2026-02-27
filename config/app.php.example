@@ -30,7 +30,6 @@ return [
 
     // -- API (read-only JSON endpoint) ----------------------------------------
     'api_enabled'      => false,
-    'api_auth_enabled' => true,    // reuses auth_username / auth_password
 
     // -- Response sent back to the app ---------------------------------------
     'response_message' => 'OK',

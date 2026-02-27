@@ -119,7 +119,7 @@ $app->add(new CorsMiddleware($config['cors_origins'] ?? []));
 // -- Route helpers -----------------------------------------------------------
 
 $checkAuth = function (Request $request, Response $response) use ($config): ?Response {
-    if (!empty($config['api_auth_enabled'])) {
+    if (!empty($config['auth_enabled'])) {
         $authHeader = $request->getHeaderLine('Authorization');
         $expected = 'Basic ' . base64_encode($config['auth_username'] . ':' . $config['auth_password']);
         if ($authHeader !== $expected) {
@@ -752,7 +752,7 @@ $app->delete('/field-options/{field:[a-z][a-z_]*}/{id:[0-9]+}', function (Reques
 // -- Meta routes -------------------------------------------------------------
 
 $app->get('/auth', function (Request $request, Response $response) use ($config): Response {
-    $method = !empty($config['api_auth_enabled']) ? 'basic' : 'none';
+    $method = !empty($config['auth_enabled']) ? 'basic' : 'none';
     $response->getBody()->write((string) json_encode(['method' => $method]));
     return $response->withHeader('Content-Type', 'application/json');
 });

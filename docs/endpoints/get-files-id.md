@@ -15,7 +15,7 @@ The `{id}` parameter must be a positive integer (regex: `[0-9]+`). This is the *
 
 ## Authentication
 
-Optional Basic Auth, controlled by `api_auth_enabled` in config. Reuses `auth_username` and `auth_password`.
+Optional Basic Auth, controlled by `auth_enabled` in config. Reuses `auth_username` and `auth_password`.
 
 ## Prerequisites
 

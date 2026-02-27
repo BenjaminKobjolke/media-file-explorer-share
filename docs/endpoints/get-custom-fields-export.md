@@ -13,7 +13,7 @@ GET /custom-fields/export
 
 ## Authentication
 
-Optional Basic Auth, controlled by `api_auth_enabled` in config.
+Optional Basic Auth, controlled by `auth_enabled` in config.
 
 ## Prerequisites
 

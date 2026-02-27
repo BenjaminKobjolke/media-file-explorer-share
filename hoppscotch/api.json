@@ -67,7 +67,7 @@
       },
       "requestVariables": [],
       "responses": {},
-      "description": "Fetch a database entry by ID with Basic Auth. Requires api_enabled=true, db_enabled=true, and api_auth_enabled=true in config/app.php. Clean URL alternative: <<baseURL>>api/entries/1"
+      "description": "Fetch a database entry by ID with Basic Auth. Requires api_enabled=true, db_enabled=true, and auth_enabled=true in config/app.php. Clean URL alternative: <<baseURL>>api/entries/1"
     },
     {
       "v": "17",
@@ -130,7 +130,7 @@
       },
       "requestVariables": [],
       "responses": {},
-      "description": "Report the authentication method required by the API. Returns 'none' when api_auth_enabled is false, 'basic' when true. Requires api_enabled=true. Does not require db_enabled or authentication. Clean URL alternative: <<baseURL>>api/auth"
+      "description": "Report the authentication method required by the API. Returns 'none' when auth_enabled is false, 'basic' when true. Requires api_enabled=true. Does not require db_enabled or authentication. Clean URL alternative: <<baseURL>>api/auth"
     },
     {
       "v": "17",
