@@ -35,6 +35,9 @@ return [
     // -- Response sent back to the app ---------------------------------------
     'response_message' => 'OK',
 
+    // -- CORS (allowed origins for browser requests) -------------------------
+    'cors_origins' => [],
+
     // -- Debug ---------------------------------------------------------------
     'debug' => false,
 ];

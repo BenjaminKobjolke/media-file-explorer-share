@@ -66,4 +66,27 @@ class StorageAction
             exit("Failed to write to log: {$logFile}");
         }
     }
+
+    /**
+     * Delete a file from disk with path traversal protection.
+     *
+     * @param string $basePath Root storage directory from config.
+     * @param string $filePath Absolute path to the file (from database).
+     * @return bool True if file was deleted, false on failure or traversal attempt.
+     */
+    public static function deleteFile(string $basePath, string $filePath): bool
+    {
+        $realPath = realpath($filePath);
+        $storagePath = realpath($basePath);
+
+        if ($realPath === false || $storagePath === false || strpos($realPath, $storagePath) !== 0) {
+            return false;
+        }
+
+        if (!is_file($realPath)) {
+            return false;
+        }
+
+        return @unlink($realPath);
+    }
 }

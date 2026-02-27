@@ -54,6 +54,13 @@ class DatabaseAction
             created_at TEXT    NOT NULL
         )');
 
+        // Schema migrations
+        $cols = $pdo->query("PRAGMA table_info(entries)")->fetchAll(PDO::FETCH_COLUMN, 1);
+        if (!in_array('project', $cols, true)) {
+            $pdo->exec("ALTER TABLE entries ADD COLUMN project TEXT");
+            $pdo->exec("ALTER TABLE attachments ADD COLUMN project TEXT");
+        }
+
         return $pdo;
     }
 
@@ -66,13 +73,13 @@ class DatabaseAction
      * @param RequestContext $ctx     Request metadata.
      * @return int Insert ID.
      */
-    public static function saveText(string $dbPath, string $subject, string $body, RequestContext $ctx): int
+    public static function saveText(string $dbPath, string $subject, string $body, RequestContext $ctx, ?string $project = null): int
     {
         $pdo = self::getConnection($dbPath);
 
         $stmt = $pdo->prepare(
-            'INSERT INTO entries (type, subject, body, ip, ua, created_at)
-             VALUES (:type, :subject, :body, :ip, :ua, :created_at)'
+            'INSERT INTO entries (type, subject, body, ip, ua, created_at, project)
+             VALUES (:type, :subject, :body, :ip, :ua, :created_at, :project)'
         );
         $stmt->execute([
             ':type'       => 'text',
@@ -81,6 +88,7 @@ class DatabaseAction
             ':ip'         => $ctx->ip,
             ':ua'         => $ctx->ua,
             ':created_at' => $ctx->time,
+            ':project'    => $project,
         ]);
 
         return (int) $pdo->lastInsertId();
@@ -105,13 +113,14 @@ class DatabaseAction
         int $fileSize,
         ?string $filePath,
         RequestContext $ctx,
-        ?string $body = null
+        ?string $body = null,
+        ?string $project = null
     ): int {
         $pdo = self::getConnection($dbPath);
 
         $stmt = $pdo->prepare(
-            'INSERT INTO entries (type, subject, body, filename, file_path, file_size, ip, ua, created_at)
-             VALUES (:type, :subject, :body, :filename, :file_path, :file_size, :ip, :ua, :created_at)'
+            'INSERT INTO entries (type, subject, body, filename, file_path, file_size, ip, ua, created_at, project)
+             VALUES (:type, :subject, :body, :filename, :file_path, :file_size, :ip, :ua, :created_at, :project)'
         );
         $stmt->execute([
             ':type'       => 'file',
@@ -123,6 +132,7 @@ class DatabaseAction
             ':ip'         => $ctx->ip,
             ':ua'         => $ctx->ua,
             ':created_at' => $ctx->time,
+            ':project'    => $project,
         ]);
 
         return (int) $pdo->lastInsertId();
@@ -154,13 +164,13 @@ class DatabaseAction
      * @param RequestContext $ctx     Request metadata.
      * @return int Attachment insert ID.
      */
-    public static function appendText(string $dbPath, int $entryId, string $subject, string $body, RequestContext $ctx): int
+    public static function appendText(string $dbPath, int $entryId, string $subject, string $body, RequestContext $ctx, ?string $project = null): int
     {
         $pdo = self::getConnection($dbPath);
 
         $stmt = $pdo->prepare(
-            'INSERT INTO attachments (entry_id, type, subject, body, ip, ua, created_at)
-             VALUES (:entry_id, :type, :subject, :body, :ip, :ua, :created_at)'
+            'INSERT INTO attachments (entry_id, type, subject, body, ip, ua, created_at, project)
+             VALUES (:entry_id, :type, :subject, :body, :ip, :ua, :created_at, :project)'
         );
         $stmt->execute([
             ':entry_id'   => $entryId,
@@ -170,6 +180,7 @@ class DatabaseAction
             ':ip'         => $ctx->ip,
             ':ua'         => $ctx->ua,
             ':created_at' => $ctx->time,
+            ':project'    => $project,
         ]);
 
         return (int) $pdo->lastInsertId();
@@ -196,13 +207,14 @@ class DatabaseAction
         int $fileSize,
         ?string $filePath,
         ?string $body,
-        RequestContext $ctx
+        RequestContext $ctx,
+        ?string $project = null
     ): int {
         $pdo = self::getConnection($dbPath);
 
         $stmt = $pdo->prepare(
-            'INSERT INTO attachments (entry_id, type, subject, body, filename, file_path, file_size, ip, ua, created_at)
-             VALUES (:entry_id, :type, :subject, :body, :filename, :file_path, :file_size, :ip, :ua, :created_at)'
+            'INSERT INTO attachments (entry_id, type, subject, body, filename, file_path, file_size, ip, ua, created_at, project)
+             VALUES (:entry_id, :type, :subject, :body, :filename, :file_path, :file_size, :ip, :ua, :created_at, :project)'
         );
         $stmt->execute([
             ':entry_id'   => $entryId,
@@ -215,6 +227,7 @@ class DatabaseAction
             ':ip'         => $ctx->ip,
             ':ua'         => $ctx->ua,
             ':created_at' => $ctx->time,
+            ':project'    => $project,
         ]);
 
         return (int) $pdo->lastInsertId();
@@ -314,5 +327,137 @@ class DatabaseAction
         $stmt->execute([':id' => $id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row !== false ? $row : null;
+    }
+
+    /**
+     * Fetch a paginated list of entries with attachment counts.
+     *
+     * @param string $dbPath  Absolute path to the .sqlite file.
+     * @param int    $page    Page number (1-based).
+     * @param int    $perPage Items per page.
+     * @return array {entries: array, total: int, page: int, per_page: int}
+     */
+    public static function getAllPaginated(string $dbPath, int $page, int $perPage): array
+    {
+        $pdo = self::getConnection($dbPath);
+
+        $countStmt = $pdo->query('SELECT COUNT(*) FROM entries');
+        $total = (int) $countStmt->fetchColumn();
+
+        $offset = ($page - 1) * $perPage;
+        $stmt = $pdo->prepare(
+            'SELECT e.*, COUNT(a.id) AS attachment_count
+             FROM entries e
+             LEFT JOIN attachments a ON a.entry_id = e.id
+             GROUP BY e.id
+             ORDER BY e.created_at DESC
+             LIMIT :limit OFFSET :offset'
+        );
+        $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        $entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($entries as &$entry) {
+            $entry['id'] = (int) $entry['id'];
+            $entry['file_size'] = $entry['file_size'] !== null ? (int) $entry['file_size'] : null;
+            $entry['attachment_count'] = (int) $entry['attachment_count'];
+            unset($entry['file_path']);
+        }
+        unset($entry);
+
+        return [
+            'entries'  => $entries,
+            'total'    => $total,
+            'page'     => $page,
+            'per_page' => $perPage,
+        ];
+    }
+
+    /**
+     * Delete an entry and its attachments. Returns pre-deletion data for file cleanup.
+     *
+     * @param string $dbPath Absolute path to the .sqlite file.
+     * @param int    $id     Entry ID.
+     * @return array|null Entry + attachments data (with file_path), or null if not found.
+     */
+    public static function deleteEntry(string $dbPath, int $id): ?array
+    {
+        $pdo = self::getConnection($dbPath);
+
+        $entry = self::getById($dbPath, $id);
+        if ($entry === null) {
+            return null;
+        }
+
+        $attachments = self::getAttachments($dbPath, $id);
+
+        $stmt = $pdo->prepare('DELETE FROM attachments WHERE entry_id = :entry_id');
+        $stmt->execute([':entry_id' => $id]);
+
+        $stmt = $pdo->prepare('DELETE FROM entries WHERE id = :id');
+        $stmt->execute([':id' => $id]);
+
+        $entry['attachments'] = $attachments;
+        return $entry;
+    }
+
+    /**
+     * Update an entry's subject and/or body. Only non-null fields are updated.
+     *
+     * @param string      $dbPath  Absolute path to the .sqlite file.
+     * @param int         $id      Entry ID.
+     * @param string|null $subject New subject, or null to leave unchanged.
+     * @param string|null $body    New body, or null to leave unchanged.
+     * @return array|null Updated row, or null if not found.
+     */
+    public static function updateEntry(string $dbPath, int $id, ?string $subject, ?string $body): ?array
+    {
+        $entry = self::getById($dbPath, $id);
+        if ($entry === null) {
+            return null;
+        }
+
+        $fields = [];
+        $params = [':id' => $id];
+
+        if ($subject !== null) {
+            $fields[] = 'subject = :subject';
+            $params[':subject'] = $subject;
+        }
+        if ($body !== null) {
+            $fields[] = 'body = :body';
+            $params[':body'] = $body;
+        }
+
+        if (!empty($fields)) {
+            $pdo = self::getConnection($dbPath);
+            $sql = 'UPDATE entries SET ' . implode(', ', $fields) . ' WHERE id = :id';
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+        }
+
+        return self::getById($dbPath, $id);
+    }
+
+    /**
+     * Delete an attachment. Returns pre-deletion data for file cleanup.
+     *
+     * @param string $dbPath Absolute path to the .sqlite file.
+     * @param int    $id     Attachment ID.
+     * @return array|null Attachment data (with file_path), or null if not found.
+     */
+    public static function deleteAttachment(string $dbPath, int $id): ?array
+    {
+        $attachment = self::getAttachmentById($dbPath, $id);
+        if ($attachment === null) {
+            return null;
+        }
+
+        $pdo = self::getConnection($dbPath);
+        $stmt = $pdo->prepare('DELETE FROM attachments WHERE id = :id');
+        $stmt->execute([':id' => $id]);
+
+        return $attachment;
     }
 }

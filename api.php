@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 use App\Actions\DatabaseAction;
+use App\Actions\StorageAction;
+use App\Middleware\CorsMiddleware;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Factory\AppFactory;
@@ -110,6 +112,9 @@ if (!empty($versionInfo)) {
         return $response->withBody(new \Slim\Psr7\Stream($stream));
     });
 }
+
+// CORS middleware
+$app->add(new CorsMiddleware($config['cors_origins'] ?? []));
 
 // -- Route helpers -----------------------------------------------------------
 
@@ -294,17 +299,150 @@ $app->get('/files/{id:[0-9]+}', function (Request $request, Response $response, 
         ->withBody($body);
 });
 
+$app->get('/entries', function (Request $request, Response $response) use ($checkAuth, $checkDb, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    $params = $request->getQueryParams();
+    $page = max(1, (int) ($params['page'] ?? 1));
+    $perPage = max(1, min(100, (int) ($params['per_page'] ?? 20)));
+
+    $result = DatabaseAction::getAllPaginated($config['db_path'], $page, $perPage);
+    $response->getBody()->write((string) json_encode($result));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+$app->delete('/entries/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    $deleted = DatabaseAction::deleteEntry($config['db_path'], (int) $args['id']);
+    if ($deleted === null) {
+        $response->getBody()->write((string) json_encode(['error' => 'Entry not found']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    // Cleanup files from disk
+    if (!empty($config['storage_path'])) {
+        if ($deleted['file_path'] !== null) {
+            StorageAction::deleteFile($config['storage_path'], $deleted['file_path']);
+        }
+        foreach ($deleted['attachments'] as $att) {
+            if ($att['file_path'] !== null) {
+                StorageAction::deleteFile($config['storage_path'], $att['file_path']);
+            }
+        }
+    }
+
+    $response->getBody()->write((string) json_encode(['message' => 'Entry deleted']));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+$app->put('/entries/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $lookupEntry, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    $body = json_decode((string) $request->getBody(), true);
+    $subject = isset($body['subject']) ? (string) $body['subject'] : null;
+    $bodyText = isset($body['body']) ? (string) $body['body'] : null;
+
+    if ($subject === null && $bodyText === null) {
+        $response->getBody()->write((string) json_encode(['error' => 'No fields to update']));
+        return $response
+            ->withStatus(400)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    $updated = DatabaseAction::updateEntry($config['db_path'], (int) $args['id'], $subject, $bodyText);
+    if ($updated === null) {
+        $response->getBody()->write((string) json_encode(['error' => 'Entry not found']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    return $lookupEntry((int) $args['id'], $response);
+});
+
+$app->delete('/attachments/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    $deleted = DatabaseAction::deleteAttachment($config['db_path'], (int) $args['id']);
+    if ($deleted === null) {
+        $response->getBody()->write((string) json_encode(['error' => 'Attachment not found']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    // Cleanup file from disk
+    if (!empty($config['storage_path']) && $deleted['file_path'] !== null) {
+        StorageAction::deleteFile($config['storage_path'], $deleted['file_path']);
+    }
+
+    $response->getBody()->write((string) json_encode(['message' => 'Attachment deleted']));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+$app->get('/auth', function (Request $request, Response $response) use ($config): Response {
+    $method = !empty($config['api_auth_enabled']) ? 'basic' : 'none';
+    $response->getBody()->write((string) json_encode(['method' => $method]));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
 $app->get('/fields', function (Request $request, Response $response) : Response {
     $fields = [
         [
             'name' => '_id',
             'type' => 'int',
             'description' => 'Append mode — attach to an existing entry instead of creating a new one',
+            'accepted_values' => [
+                ['value' => 1, 'description' => 'ID of the existing entry to append to'],
+            ],
         ],
         [
             'name' => '_email',
             'type' => 'bool',
             'description' => 'Set to false to suppress email notification for this request',
+            'accepted_values' => [
+                ['value' => false, 'description' => 'Suppress email (also accepts string "false", "0", or empty string)'],
+                ['value' => true, 'description' => 'Send email (default when omitted, if email_enabled is on)'],
+            ],
+        ],
+        [
+            'name' => '_project',
+            'type' => 'string',
+            'description' => 'Tag the entry with a project name',
+            'accepted_values' => [
+                ['value' => 'My Project', 'description' => 'Free-text project name to tag the entry with'],
+            ],
         ],
     ];
     $response->getBody()->write((string) json_encode($fields));

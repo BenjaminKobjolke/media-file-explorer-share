@@ -62,6 +62,7 @@ class FileHandler
             $raw = $_POST['_email'];
             $emailOverride = ($raw === 'false' || $raw === '0' || $raw === '') ? false : $raw;
         }
+        $project = isset($_POST['_project']) ? (string) $_POST['_project'] : null;
 
         if ($entryId !== null && !empty($config['db_enabled'])) {
             $parent = DatabaseAction::getById($config['db_path'], $entryId);
@@ -75,7 +76,7 @@ class FileHandler
         }
 
         // -- Capture extra POST fields as JSON body --------
-        $extraFields = array_diff_key($_POST, ['file' => true, '_id' => true, '_email' => true]);
+        $extraFields = array_diff_key($_POST, ['file' => true, '_id' => true, '_email' => true, '_project' => true]);
         $body = !empty($extraFields) ? json_encode($extraFields, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null;
 
         // -- Build metadata HTML --------------------------
@@ -115,7 +116,8 @@ class FileHandler
                     $file['size'],
                     $filePath,
                     $body,
-                    $ctx
+                    $ctx,
+                    $project
                 );
                 $insertId = $entryId;
             } else {
@@ -127,7 +129,8 @@ class FileHandler
                     $file['size'],
                     $filePath,
                     $ctx,
-                    $body
+                    $body,
+                    $project
                 );
             }
         }

@@ -42,6 +42,7 @@ class TextHandler
         $decoded     = null;
         $entryId       = null;
         $emailOverride = null;
+        $project       = null;
 
         // -- JSON with text_or_url field -------------------
         if (stripos($contentType, 'application/json') !== false) {
@@ -60,8 +61,12 @@ class TextHandler
                     }
                     unset($decoded['_email']);
                 }
+                if (isset($decoded['_project'])) {
+                    $project = (string) $decoded['_project'];
+                    unset($decoded['_project']);
+                }
                 // Re-encode body without reserved fields
-                if ($entryId !== null || $emailOverride !== null) {
+                if ($entryId !== null || $emailOverride !== null || $project !== null) {
                     $body = json_encode($decoded, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                 }
 
@@ -120,7 +125,8 @@ class TextHandler
                     $entryId,
                     $subject,
                     $body,
-                    $ctx
+                    $ctx,
+                    $project ?? null
                 );
                 $insertId = $entryId;
             } else {
@@ -129,7 +135,8 @@ class TextHandler
                     $config['db_path'],
                     $subject,
                     $body,
-                    $ctx
+                    $ctx,
+                    $project ?? null
                 );
             }
         }
