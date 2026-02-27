@@ -55,7 +55,11 @@ Requires `api_enabled` to be `true` in config. Does **not** require `db_enabled`
       "description": "Tag the entry with a project ID from the projects table",
       "accepted_values": [
         {"value": 1, "description": "ID of the project (must exist in projects table)"}
-      ]
+      ],
+      "resource": {
+        "name": "projects",
+        "path": "/projects"
+      }
     }
   ]
 }
@@ -66,6 +70,7 @@ Requires `api_enabled` to be `true` in config. Does **not** require `db_enabled`
 - The `data` array contains field descriptor objects, each with `name`, `type`, `description`, and `accepted_values`
 - `accepted_values` is an array of example/allowed values, each with a `value` and `description`
 - The list reflects all `_`-prefixed reserved fields stripped before storage
+- When a field is backed by a managed resource with its own CRUD endpoints, a `resource` object is included with `name` (resource identifier) and `path` (base API path). Standard REST operations (list, create, update, delete) follow from this path
 - `_version` is read from the `VERSION` file; `_deploy_id` is read from `deploy.ver` (omitted when the file is absent or empty)
 
 ## Example

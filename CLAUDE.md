@@ -62,7 +62,7 @@ Send `_id` with your POST to attach text/files to an existing entry:
 12. `POST /projects` with `{"name": "..."}` body — requires `db_enabled`, optional Basic Auth, creates project; 409 on duplicate name
 13. `PUT /projects/{id}` with `{"name": "..."}` body — requires `db_enabled`, optional Basic Auth, renames project; 404/409
 14. `DELETE /projects/{id}` — requires `db_enabled`, optional Basic Auth, deletes project, sets `project_id = NULL` on entries/attachments
-15. `GET /fields` — no auth, no `db_enabled` required; returns reserved field metadata
+15. `GET /fields` — no auth, no `db_enabled` required; returns reserved field metadata; resource-backed fields include a `resource` object with `name` and `path` for CRUD endpoint discovery
 16. `GET /auth` — no auth, no `db_enabled` required; returns `{"method": "none"|"basic"}` indicating required auth method
 13. CORS middleware handles preflight OPTIONS requests for configured origins (`cors_origins` in config)
 14. All JSON responses include `_version` (from `VERSION` file) and optionally `_deploy_id` (from `deploy.ver`) as top-level keys; array responses are wrapped in a `{"_version": ..., "data": [...]}` envelope

@@ -113,6 +113,7 @@ Tag the entry with a project ID from the `projects` table.
 - The value is stored in the entry's `project_id` column
 - The field is stripped from the stored body — it never appears in the `body` or `subject` columns
 - Use `GET /projects` to list available projects, `POST /projects` to create new ones
+- Available projects are discoverable via `GET /fields` (which includes a `resource` object pointing to `/projects`)
 
 ### Examples
 

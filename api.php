@@ -565,6 +565,10 @@ $app->get('/fields', function (Request $request, Response $response) : Response 
             'accepted_values' => [
                 ['value' => 1, 'description' => 'ID of the project (must exist in projects table)'],
             ],
+            'resource' => [
+                'name' => 'projects',
+                'path' => '/projects',
+            ],
         ],
     ];
     $response->getBody()->write((string) json_encode($fields));
