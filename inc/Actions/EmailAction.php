@@ -31,7 +31,7 @@ class EmailAction
             "Content-Type: text/html; charset=UTF-8",
         ];
 
-        $ok = mail($to, $subject, $html, implode("\r\n", $headers));
+        $ok = @mail($to, $subject, $html, implode("\r\n", $headers));
         if (!$ok) {
             http_response_code(500);
             exit('Mail failed (check server mail setup).');
@@ -59,7 +59,7 @@ class EmailAction
             "Content-Type: text/plain; charset=UTF-8",
         ];
 
-        $ok = mail($to, $subject, $body, implode("\r\n", $headers));
+        $ok = @mail($to, $subject, $body, implode("\r\n", $headers));
         if (!$ok) {
             http_response_code(500);
             exit('Mail failed (check server mail setup).');
@@ -104,7 +104,7 @@ class EmailAction
             "Content-Type: multipart/mixed; boundary=\"{$boundary}\"",
         ];
 
-        $ok = mail($to, $subject, $mimeBody, implode("\r\n", $headers));
+        $ok = @mail($to, $subject, $mimeBody, implode("\r\n", $headers));
         if (!$ok) {
             http_response_code(500);
             exit('Mail failed (check server mail setup).');
