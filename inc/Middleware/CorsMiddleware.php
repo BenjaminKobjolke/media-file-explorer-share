@@ -31,7 +31,9 @@ class CorsMiddleware implements MiddlewareInterface
         $origin = $request->getHeaderLine('Origin');
 
         // No Origin header or origin not in whitelist — pass through
-        if ($origin === '' || !in_array($origin, $this->allowedOrigins, true)) {
+        $isAllowed = in_array('*', $this->allowedOrigins, true)
+                  || in_array($origin, $this->allowedOrigins, true);
+        if ($origin === '' || !$isAllowed) {
             return $handler->handle($request);
         }
 
@@ -48,8 +50,9 @@ class CorsMiddleware implements MiddlewareInterface
 
     private function addCorsHeaders(Response $response, string $origin): Response
     {
+        $allowOrigin = in_array('*', $this->allowedOrigins, true) ? '*' : $origin;
         return $response
-            ->withHeader('Access-Control-Allow-Origin', $origin)
+            ->withHeader('Access-Control-Allow-Origin', $allowOrigin)
             ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
             ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
             ->withHeader('Access-Control-Max-Age', '86400');
