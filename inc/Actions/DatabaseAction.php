@@ -11,6 +11,9 @@ use PDO;
  */
 class DatabaseAction
 {
+    /** @var PDO[] Cached connections keyed by database path. */
+    private static array $connections = [];
+
     /**
      * Open (and initialise) the SQLite database.
      *
@@ -19,6 +22,10 @@ class DatabaseAction
      */
     private static function getConnection(string $dbPath): PDO
     {
+        if (isset(self::$connections[$dbPath])) {
+            return self::$connections[$dbPath];
+        }
+
         $dir = dirname($dbPath);
         if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
             throw new \RuntimeException("Failed to create database directory: {$dir}");
@@ -26,6 +33,8 @@ class DatabaseAction
 
         $pdo = new PDO('sqlite:' . $dbPath);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo->exec('PRAGMA busy_timeout = 5000');
+        $pdo->exec('PRAGMA journal_mode = WAL');
 
         $pdo->exec('CREATE TABLE IF NOT EXISTS entries (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,6 +117,7 @@ class DatabaseAction
             }
         }
 
+        self::$connections[$dbPath] = $pdo;
         return $pdo;
     }
 
