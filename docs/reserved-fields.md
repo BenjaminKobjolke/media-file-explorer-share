@@ -92,3 +92,47 @@ curl -X POST https://example.com/share.php \
   -H "Content-Type: application/json" \
   -d '{"_id": 3, "_email": false, "text_or_url": "Silent attachment"}'
 ```
+
+---
+
+## `_project` — Project Tag
+
+Tag the entry with a project name for grouping and filtering.
+
+| Property | Value |
+|----------|-------|
+| Type | `string` |
+| Handlers | `TextHandler`, `FileHandler` |
+| Default | None (field is optional) |
+
+### Behavior
+
+- When present, the value is stored in the entry's `project` column
+- The field is stripped from the stored body — it never appears in the `body` or `subject` columns
+- Any non-empty string is accepted as a valid project name
+
+### Examples
+
+**Tag a text entry with a project:**
+
+```bash
+curl -X POST https://example.com/share.php \
+  -H "Content-Type: application/json" \
+  -d '{"_project": "My Project", "text_or_url": "Note for this project"}'
+```
+
+**Tag a file upload with a project:**
+
+```bash
+curl -X POST https://example.com/share.php \
+  -F "file=@report.pdf" \
+  -F "_project=My Project"
+```
+
+**Combine with other reserved fields:**
+
+```bash
+curl -X POST https://example.com/share.php \
+  -H "Content-Type: application/json" \
+  -d '{"_id": 2, "_email": false, "_project": "My Project", "text_or_url": "Silent attachment with project tag"}'
+```

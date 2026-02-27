@@ -7,7 +7,7 @@ PHP webhook receiver for the Media File Explorer Android app. Accepts text/file 
 PHP app with two entry points using PSR-4 autoloading via Composer:
 
 - `share.php` — POST webhook receiver (accepts text/file uploads)
-- `api.php` — GET/POST read-only JSON API (Slim 4, queries the SQLite database)
+- `api.php` — JSON API (Slim 4, CRUD operations on the SQLite database)
 
 ### Namespace Map
 
@@ -16,6 +16,7 @@ PHP app with two entry points using PSR-4 autoloading via Composer:
 | `App` | `inc/` | `WebhookHandler`, `RequestContext`, `AuthValidator` |
 | `App\Handlers` | `inc/Handlers/` | `FileHandler`, `TextHandler` |
 | `App\Actions` | `inc/Actions/` | `DatabaseAction`, `EmailAction`, `StorageAction` |
+| `App\Middleware` | `inc/Middleware/` | `CorsMiddleware` |
 | `App\Formatters` | `inc/Formatters/` | `LogarteFormatter`, `MarkdownFormatter` |
 
 ### Request Flow
@@ -48,11 +49,18 @@ Send `_id` with your POST to attach text/files to an existing entry:
 
 1. `api.php` loads config + Composer autoloader, gates on `api_enabled`
 2. Creates a Slim 4 app with JSON error handling
-3. `GET /entries/{id}` — requires `db_enabled`, optional Basic Auth, then `DatabaseAction::getByIdWithAttachments()` returns entry with nested attachments array and `file_url` links
-4. `POST /entries` with `{"id": 1}` body — requires `db_enabled`, alternative to `GET /entries/{id}`, same auth and response; returns 400 if `id` is missing
-5. `GET /files/{id}` — requires `db_enabled`, optional Basic Auth, serves attachment file from disk with `realpath()` traversal protection
-6. `GET /fields` — no auth, no `db_enabled` required; returns reserved field metadata
-7. All JSON responses include `_version` (from `VERSION` file) and optionally `_deploy_id` (from `deploy.ver`) as top-level keys; array responses are wrapped in a `{"_version": ..., "data": [...]}` envelope
+3. `GET /entries` — requires `db_enabled`, optional Basic Auth, paginated entry list with attachment counts (query params: `page`, `per_page`)
+4. `GET /entries/{id}` — requires `db_enabled`, optional Basic Auth, then `DatabaseAction::getByIdWithAttachments()` returns entry with nested attachments array and `file_url` links
+5. `POST /entries` with `{"id": 1}` body — requires `db_enabled`, alternative to `GET /entries/{id}`, same auth and response; returns 400 if `id` is missing
+6. `PUT /entries/{id}` — requires `db_enabled`, optional Basic Auth, updates subject and/or body, returns full entry
+7. `DELETE /entries/{id}` — requires `db_enabled`, optional Basic Auth, deletes entry + attachments + files from disk
+8. `DELETE /attachments/{id}` — requires `db_enabled`, optional Basic Auth, deletes single attachment + file from disk
+9. `GET /entries/{id}/file` — requires `db_enabled`, optional Basic Auth, serves entry's main file
+10. `GET /files/{id}` — requires `db_enabled`, optional Basic Auth, serves attachment file from disk with `realpath()` traversal protection
+11. `GET /fields` — no auth, no `db_enabled` required; returns reserved field metadata
+12. `GET /auth` — no auth, no `db_enabled` required; returns `{"method": "none"|"basic"}` indicating required auth method
+13. CORS middleware handles preflight OPTIONS requests for configured origins (`cors_origins` in config)
+14. All JSON responses include `_version` (from `VERSION` file) and optionally `_deploy_id` (from `deploy.ver`) as top-level keys; array responses are wrapped in a `{"_version": ..., "data": [...]}` envelope
 
 ##### Clean URLs
 
