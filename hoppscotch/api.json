@@ -98,7 +98,7 @@
       "params": [],
       "headers": [],
       "preRequestScript": "",
-      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has _version and data array\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(Array.isArray(body.data)).toBe(true);\n  pw.expect(body.data.length).toBeGreaterThan(0);\n  pw.expect(body.data[0].name).toBeDefined();\n  pw.expect(body.data[0].type).toBeDefined();\n  pw.expect(body.data[0].description).toBeDefined();\n});",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has _version and data array with accepted_values\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(Array.isArray(body.data)).toBe(true);\n  pw.expect(body.data.length).toBeGreaterThan(0);\n  body.data.forEach((field) => {\n    pw.expect(field.name).toBeDefined();\n    pw.expect(field.type).toBeDefined();\n    pw.expect(field.description).toBeDefined();\n    pw.expect(Array.isArray(field.accepted_values)).toBe(true);\n    pw.expect(field.accepted_values.length).toBeGreaterThan(0);\n    field.accepted_values.forEach((av) => {\n      pw.expect(av.description).toBeDefined();\n    });\n  });\n});",
       "auth": {
         "authType": "none",
         "authActive": true
@@ -110,6 +110,122 @@
       "requestVariables": [],
       "responses": {},
       "description": "List all reserved underscore-prefixed control fields accepted by the webhook. Returns a JSON object with _version, optional _deploy_id, and a data array of field descriptors (name, type, description). Requires api_enabled=true. Does not require db_enabled or authentication. Clean URL alternative: <<baseURL>>api/fields"
+    },
+    {
+      "v": "17",
+      "name": "Get auth method",
+      "method": "GET",
+      "endpoint": "<<baseURL>>api.php/auth",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has method field\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(body.method).toBeDefined();\n  pw.expect([\"none\", \"basic\"]).toContain(body.method);\n});",
+      "auth": {
+        "authType": "none",
+        "authActive": true
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Report the authentication method required by the API. Returns 'none' when api_auth_enabled is false, 'basic' when true. Requires api_enabled=true. Does not require db_enabled or authentication. Clean URL alternative: <<baseURL>>api/auth"
+    },
+    {
+      "v": "17",
+      "name": "List entries (paginated)",
+      "method": "GET",
+      "endpoint": "<<baseURL>>api.php/entries",
+      "params": [
+        {"key": "page", "value": "1", "active": true},
+        {"key": "per_page", "value": "5", "active": true}
+      ],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has paginated entries\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(Array.isArray(body.entries)).toBe(true);\n  pw.expect(typeof body.total).toBe(\"number\");\n  pw.expect(typeof body.page).toBe(\"number\");\n  pw.expect(typeof body.per_page).toBe(\"number\");\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "List all entries with pagination and attachment counts. Returns entries ordered by created_at DESC. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/entries?page=1&per_page=5"
+    },
+    {
+      "v": "17",
+      "name": "Update entry",
+      "method": "PUT",
+      "endpoint": "<<baseURL>>api.php/entries/1",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has updated entry with attachments\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(body.id).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n  pw.expect(body.subject).toBeDefined();\n  pw.expect(Array.isArray(body.attachments)).toBe(true);\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n    \"subject\": \"Updated subject\"\n}"
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Update an entry's subject and/or body. Returns the full entry with attachments. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/entries/1"
+    },
+    {
+      "v": "17",
+      "name": "Delete entry",
+      "method": "DELETE",
+      "endpoint": "<<baseURL>>api.php/entries/1",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response confirms deletion\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body.message).toBe(\"Entry deleted\");\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Delete an entry and all its attachments. Associated files are removed from disk. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/entries/1"
+    },
+    {
+      "v": "17",
+      "name": "Delete attachment",
+      "method": "DELETE",
+      "endpoint": "<<baseURL>>api.php/attachments/1",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response confirms deletion\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body.message).toBe(\"Attachment deleted\");\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Delete a single attachment by its ID. The associated file is removed from disk. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/attachments/1"
     }
   ],
   "auth": {
@@ -118,5 +234,5 @@
   },
   "headers": [],
   "variables": [],
-  "description": "Read-only JSON API (api.php) — entry lookup, file download, and field metadata. All JSON responses include _version and optionally _deploy_id."
+  "description": "JSON API (api.php) — entry CRUD, file download, and field metadata. All JSON responses include _version and optionally _deploy_id."
 }]
