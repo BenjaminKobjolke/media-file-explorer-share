@@ -770,7 +770,7 @@ $app->get('/fields', function (Request $request, Response $response) use ($confi
         [
             'name' => '_email',
             'type' => 'bool',
-            'description' => 'Set to false to suppress email notification for this request',
+            'description' => 'Send email notification',
             'accepted_values' => [
                 ['value' => false, 'description' => 'Suppress email (also accepts string "false", "0", or empty string)'],
                 ['value' => true, 'description' => 'Send email (default when omitted, if email_enabled is on)'],
