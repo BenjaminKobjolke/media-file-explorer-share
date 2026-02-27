@@ -61,6 +61,30 @@ class DatabaseAction
             $pdo->exec("ALTER TABLE attachments ADD COLUMN project TEXT");
         }
 
+        // Projects table + project_id migration
+        $pdo->exec('CREATE TABLE IF NOT EXISTS projects (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            name       TEXT    NOT NULL UNIQUE,
+            created_at TEXT    NOT NULL
+        )');
+
+        if (!in_array('project_id', $cols, true)) {
+            $pdo->exec("ALTER TABLE entries ADD COLUMN project_id INTEGER");
+            $attCols = $pdo->query("PRAGMA table_info(attachments)")->fetchAll(PDO::FETCH_COLUMN, 1);
+            if (!in_array('project_id', $attCols, true)) {
+                $pdo->exec("ALTER TABLE attachments ADD COLUMN project_id INTEGER");
+            }
+
+            // Auto-migrate: insert distinct project names into projects table, backfill project_id
+            $pdo->exec("INSERT OR IGNORE INTO projects (name, created_at)
+                SELECT DISTINCT project, datetime('now') FROM entries WHERE project IS NOT NULL AND project != ''");
+            $pdo->exec("INSERT OR IGNORE INTO projects (name, created_at)
+                SELECT DISTINCT project, datetime('now') FROM attachments WHERE project IS NOT NULL AND project != ''
+                AND project NOT IN (SELECT name FROM projects)");
+            $pdo->exec("UPDATE entries SET project_id = (SELECT id FROM projects WHERE projects.name = entries.project) WHERE project IS NOT NULL");
+            $pdo->exec("UPDATE attachments SET project_id = (SELECT id FROM projects WHERE projects.name = attachments.project) WHERE project IS NOT NULL");
+        }
+
         return $pdo;
     }
 
@@ -73,13 +97,13 @@ class DatabaseAction
      * @param RequestContext $ctx     Request metadata.
      * @return int Insert ID.
      */
-    public static function saveText(string $dbPath, string $subject, string $body, RequestContext $ctx, ?string $project = null): int
+    public static function saveText(string $dbPath, string $subject, string $body, RequestContext $ctx, ?int $projectId = null): int
     {
         $pdo = self::getConnection($dbPath);
 
         $stmt = $pdo->prepare(
-            'INSERT INTO entries (type, subject, body, ip, ua, created_at, project)
-             VALUES (:type, :subject, :body, :ip, :ua, :created_at, :project)'
+            'INSERT INTO entries (type, subject, body, ip, ua, created_at, project_id)
+             VALUES (:type, :subject, :body, :ip, :ua, :created_at, :project_id)'
         );
         $stmt->execute([
             ':type'       => 'text',
@@ -88,7 +112,7 @@ class DatabaseAction
             ':ip'         => $ctx->ip,
             ':ua'         => $ctx->ua,
             ':created_at' => $ctx->time,
-            ':project'    => $project,
+            ':project_id' => $projectId,
         ]);
 
         return (int) $pdo->lastInsertId();
@@ -114,13 +138,13 @@ class DatabaseAction
         ?string $filePath,
         RequestContext $ctx,
         ?string $body = null,
-        ?string $project = null
+        ?int $projectId = null
     ): int {
         $pdo = self::getConnection($dbPath);
 
         $stmt = $pdo->prepare(
-            'INSERT INTO entries (type, subject, body, filename, file_path, file_size, ip, ua, created_at, project)
-             VALUES (:type, :subject, :body, :filename, :file_path, :file_size, :ip, :ua, :created_at, :project)'
+            'INSERT INTO entries (type, subject, body, filename, file_path, file_size, ip, ua, created_at, project_id)
+             VALUES (:type, :subject, :body, :filename, :file_path, :file_size, :ip, :ua, :created_at, :project_id)'
         );
         $stmt->execute([
             ':type'       => 'file',
@@ -132,7 +156,7 @@ class DatabaseAction
             ':ip'         => $ctx->ip,
             ':ua'         => $ctx->ua,
             ':created_at' => $ctx->time,
-            ':project'    => $project,
+            ':project_id' => $projectId,
         ]);
 
         return (int) $pdo->lastInsertId();
@@ -164,13 +188,13 @@ class DatabaseAction
      * @param RequestContext $ctx     Request metadata.
      * @return int Attachment insert ID.
      */
-    public static function appendText(string $dbPath, int $entryId, string $subject, string $body, RequestContext $ctx, ?string $project = null): int
+    public static function appendText(string $dbPath, int $entryId, string $subject, string $body, RequestContext $ctx, ?int $projectId = null): int
     {
         $pdo = self::getConnection($dbPath);
 
         $stmt = $pdo->prepare(
-            'INSERT INTO attachments (entry_id, type, subject, body, ip, ua, created_at, project)
-             VALUES (:entry_id, :type, :subject, :body, :ip, :ua, :created_at, :project)'
+            'INSERT INTO attachments (entry_id, type, subject, body, ip, ua, created_at, project_id)
+             VALUES (:entry_id, :type, :subject, :body, :ip, :ua, :created_at, :project_id)'
         );
         $stmt->execute([
             ':entry_id'   => $entryId,
@@ -180,7 +204,7 @@ class DatabaseAction
             ':ip'         => $ctx->ip,
             ':ua'         => $ctx->ua,
             ':created_at' => $ctx->time,
-            ':project'    => $project,
+            ':project_id' => $projectId,
         ]);
 
         return (int) $pdo->lastInsertId();
@@ -208,13 +232,13 @@ class DatabaseAction
         ?string $filePath,
         ?string $body,
         RequestContext $ctx,
-        ?string $project = null
+        ?int $projectId = null
     ): int {
         $pdo = self::getConnection($dbPath);
 
         $stmt = $pdo->prepare(
-            'INSERT INTO attachments (entry_id, type, subject, body, filename, file_path, file_size, ip, ua, created_at, project)
-             VALUES (:entry_id, :type, :subject, :body, :filename, :file_path, :file_size, :ip, :ua, :created_at, :project)'
+            'INSERT INTO attachments (entry_id, type, subject, body, filename, file_path, file_size, ip, ua, created_at, project_id)
+             VALUES (:entry_id, :type, :subject, :body, :filename, :file_path, :file_size, :ip, :ua, :created_at, :project_id)'
         );
         $stmt->execute([
             ':entry_id'   => $entryId,
@@ -227,7 +251,7 @@ class DatabaseAction
             ':ip'         => $ctx->ip,
             ':ua'         => $ctx->ua,
             ':created_at' => $ctx->time,
-            ':project'    => $project,
+            ':project_id' => $projectId,
         ]);
 
         return (int) $pdo->lastInsertId();
@@ -266,6 +290,8 @@ class DatabaseAction
         // Cast integer fields
         $entry['id'] = (int) $entry['id'];
         $entry['file_size'] = $entry['file_size'] !== null ? (int) $entry['file_size'] : null;
+        $entry['project_id'] = $entry['project_id'] !== null ? (int) $entry['project_id'] : null;
+        unset($entry['project']);
 
         // Decode body from JSON string to object
         if ($entry['body'] !== null) {
@@ -289,6 +315,8 @@ class DatabaseAction
             $att['id'] = (int) $att['id'];
             $att['entry_id'] = (int) $att['entry_id'];
             $att['file_size'] = $att['file_size'] !== null ? (int) $att['file_size'] : null;
+            $att['project_id'] = $att['project_id'] !== null ? (int) $att['project_id'] : null;
+            unset($att['project']);
 
             // Decode body from JSON string to object
             if ($att['body'] !== null) {
@@ -337,22 +365,34 @@ class DatabaseAction
      * @param int    $perPage Items per page.
      * @return array {entries: array, total: int, page: int, per_page: int}
      */
-    public static function getAllPaginated(string $dbPath, int $page, int $perPage): array
+    public static function getAllPaginated(string $dbPath, int $page, int $perPage, ?int $projectId = null): array
     {
         $pdo = self::getConnection($dbPath);
 
-        $countStmt = $pdo->query('SELECT COUNT(*) FROM entries');
+        $where = '';
+        $countParams = [];
+        if ($projectId !== null) {
+            $where = ' WHERE e.project_id = :project_id';
+            $countParams[':project_id'] = $projectId;
+        }
+
+        $countStmt = $pdo->prepare('SELECT COUNT(*) FROM entries e' . $where);
+        $countStmt->execute($countParams);
         $total = (int) $countStmt->fetchColumn();
 
         $offset = ($page - 1) * $perPage;
         $stmt = $pdo->prepare(
             'SELECT e.*, COUNT(a.id) AS attachment_count
              FROM entries e
-             LEFT JOIN attachments a ON a.entry_id = e.id
-             GROUP BY e.id
+             LEFT JOIN attachments a ON a.entry_id = e.id'
+             . $where .
+            ' GROUP BY e.id
              ORDER BY e.created_at DESC
              LIMIT :limit OFFSET :offset'
         );
+        if ($projectId !== null) {
+            $stmt->bindValue(':project_id', $projectId, PDO::PARAM_INT);
+        }
         $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
         $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
@@ -361,8 +401,9 @@ class DatabaseAction
         foreach ($entries as &$entry) {
             $entry['id'] = (int) $entry['id'];
             $entry['file_size'] = $entry['file_size'] !== null ? (int) $entry['file_size'] : null;
+            $entry['project_id'] = $entry['project_id'] !== null ? (int) $entry['project_id'] : null;
             $entry['attachment_count'] = (int) $entry['attachment_count'];
-            unset($entry['file_path']);
+            unset($entry['file_path'], $entry['project']);
         }
         unset($entry);
 
@@ -459,5 +500,119 @@ class DatabaseAction
         $stmt->execute([':id' => $id]);
 
         return $attachment;
+    }
+
+    // -- Project CRUD --------------------------------------------------------
+
+    /**
+     * Fetch all projects with entry counts.
+     *
+     * @param string $dbPath Absolute path to the .sqlite file.
+     * @return array List of project rows with entry_count.
+     */
+    public static function getAllProjects(string $dbPath): array
+    {
+        $pdo = self::getConnection($dbPath);
+        $stmt = $pdo->query(
+            'SELECT p.*, COUNT(e.id) AS entry_count
+             FROM projects p
+             LEFT JOIN entries e ON e.project_id = p.id
+             GROUP BY p.id
+             ORDER BY p.name ASC'
+        );
+        $projects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($projects as &$project) {
+            $project['id'] = (int) $project['id'];
+            $project['entry_count'] = (int) $project['entry_count'];
+        }
+        unset($project);
+        return $projects;
+    }
+
+    /**
+     * Fetch a single project by its ID.
+     *
+     * @param string $dbPath Absolute path to the .sqlite file.
+     * @param int    $id     Project ID.
+     * @return array|null Row as associative array, or null if not found.
+     */
+    public static function getProjectById(string $dbPath, int $id): ?array
+    {
+        $pdo = self::getConnection($dbPath);
+        $stmt = $pdo->prepare('SELECT * FROM projects WHERE id = :id');
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return null;
+        }
+        $row['id'] = (int) $row['id'];
+        return $row;
+    }
+
+    /**
+     * Create a new project.
+     *
+     * @param string $dbPath Absolute path to the .sqlite file.
+     * @param string $name   Project name (must be unique).
+     * @return int Insert ID.
+     */
+    public static function createProject(string $dbPath, string $name): int
+    {
+        $pdo = self::getConnection($dbPath);
+        $stmt = $pdo->prepare(
+            'INSERT INTO projects (name, created_at) VALUES (:name, :created_at)'
+        );
+        $stmt->execute([
+            ':name'       => $name,
+            ':created_at' => date('c'),
+        ]);
+        return (int) $pdo->lastInsertId();
+    }
+
+    /**
+     * Rename an existing project.
+     *
+     * @param string $dbPath Absolute path to the .sqlite file.
+     * @param int    $id     Project ID.
+     * @param string $name   New project name (must be unique).
+     * @return array|null Updated row, or null if not found.
+     */
+    public static function updateProject(string $dbPath, int $id, string $name): ?array
+    {
+        $project = self::getProjectById($dbPath, $id);
+        if ($project === null) {
+            return null;
+        }
+
+        $pdo = self::getConnection($dbPath);
+        $stmt = $pdo->prepare('UPDATE projects SET name = :name WHERE id = :id');
+        $stmt->execute([':name' => $name, ':id' => $id]);
+
+        return self::getProjectById($dbPath, $id);
+    }
+
+    /**
+     * Delete a project. Sets project_id to NULL on associated entries/attachments.
+     *
+     * @param string $dbPath Absolute path to the .sqlite file.
+     * @param int    $id     Project ID.
+     * @return bool True if deleted, false if not found.
+     */
+    public static function deleteProject(string $dbPath, int $id): bool
+    {
+        $project = self::getProjectById($dbPath, $id);
+        if ($project === null) {
+            return false;
+        }
+
+        $pdo = self::getConnection($dbPath);
+        $stmt = $pdo->prepare('UPDATE entries SET project_id = NULL WHERE project_id = :id');
+        $stmt->execute([':id' => $id]);
+        $stmt = $pdo->prepare('UPDATE attachments SET project_id = NULL WHERE project_id = :id');
+        $stmt->execute([':id' => $id]);
+        $stmt = $pdo->prepare('DELETE FROM projects WHERE id = :id');
+        $stmt->execute([':id' => $id]);
+
+        return true;
     }
 }

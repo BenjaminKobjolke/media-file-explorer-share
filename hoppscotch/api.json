@@ -139,7 +139,8 @@
       "endpoint": "<<baseURL>>api.php/entries",
       "params": [
         {"key": "page", "value": "1", "active": true},
-        {"key": "per_page", "value": "5", "active": true}
+        {"key": "per_page", "value": "5", "active": true},
+        {"key": "project_id", "value": "1", "active": false}
       ],
       "headers": [],
       "preRequestScript": "",
@@ -156,7 +157,7 @@
       },
       "requestVariables": [],
       "responses": {},
-      "description": "List all entries with pagination and attachment counts. Returns entries ordered by created_at DESC. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/entries?page=1&per_page=5"
+      "description": "List all entries with pagination and attachment counts. Optionally filter by project_id. Returns entries ordered by created_at DESC. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/entries?page=1&per_page=5"
     },
     {
       "v": "17",
@@ -226,6 +227,98 @@
       "requestVariables": [],
       "responses": {},
       "description": "Delete a single attachment by its ID. The associated file is removed from disk. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/attachments/1"
+    },
+    {
+      "v": "17",
+      "name": "List projects",
+      "method": "GET",
+      "endpoint": "<<baseURL>>api.php/projects",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has _version and data array of projects\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(Array.isArray(body.data)).toBe(true);\n  body.data.forEach((p) => {\n    pw.expect(typeof p.id).toBe(\"number\");\n    pw.expect(p.name).toBeDefined();\n    pw.expect(typeof p.entry_count).toBe(\"number\");\n  });\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "List all projects with entry counts. Returns a data array of project objects. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/projects"
+    },
+    {
+      "v": "17",
+      "name": "Create project",
+      "method": "POST",
+      "endpoint": "<<baseURL>>api.php/projects",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 201\", () => {\n  pw.expect(pw.response.status).toBe(201);\n});\n\npw.test(\"Response has created project with id and name\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n  pw.expect(body.name).toBeDefined();\n  pw.expect(body.created_at).toBeDefined();\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n    \"name\": \"Test Project\"\n}"
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Create a new project. Returns 201 with the created project. Returns 409 if the name already exists. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/projects"
+    },
+    {
+      "v": "17",
+      "name": "Rename project",
+      "method": "PUT",
+      "endpoint": "<<baseURL>>api.php/projects/1",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has updated project\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n  pw.expect(body.name).toBeDefined();\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n    \"name\": \"Renamed Project\"\n}"
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Rename an existing project. Returns 404 if not found, 409 if name already exists. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/projects/1"
+    },
+    {
+      "v": "17",
+      "name": "Delete project",
+      "method": "DELETE",
+      "endpoint": "<<baseURL>>api.php/projects/1",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response confirms deletion\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body.message).toBe(\"Project deleted\");\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Delete a project. Sets project_id to NULL on associated entries and attachments. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/projects/1"
     }
   ],
   "auth": {
@@ -234,5 +327,5 @@
   },
   "headers": [],
   "variables": [],
-  "description": "JSON API (api.php) — entry CRUD, file download, and field metadata. All JSON responses include _version and optionally _deploy_id."
+  "description": "JSON API (api.php) — entry CRUD, project CRUD, file download, and field metadata. All JSON responses include _version and optionally _deploy_id."
 }]

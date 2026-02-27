@@ -42,7 +42,7 @@ class TextHandler
         $decoded     = null;
         $entryId       = null;
         $emailOverride = null;
-        $project       = null;
+        $projectId     = null;
 
         // -- JSON with text_or_url field -------------------
         if (stripos($contentType, 'application/json') !== false) {
@@ -62,11 +62,11 @@ class TextHandler
                     unset($decoded['_email']);
                 }
                 if (isset($decoded['_project'])) {
-                    $project = (string) $decoded['_project'];
+                    $projectId = (int) $decoded['_project'];
                     unset($decoded['_project']);
                 }
                 // Re-encode body without reserved fields
-                if ($entryId !== null || $emailOverride !== null || $project !== null) {
+                if ($entryId !== null || $emailOverride !== null || $projectId !== null) {
                     $body = json_encode($decoded, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                 }
 
@@ -80,6 +80,14 @@ class TextHandler
                     } else {
                         http_response_code(400);
                         exit('_id requires db_enabled');
+                    }
+                }
+
+                if ($projectId !== null && !empty($config['db_enabled'])) {
+                    $proj = DatabaseAction::getProjectById($config['db_path'], $projectId);
+                    if ($proj === null) {
+                        http_response_code(400);
+                        exit('Project not found');
                     }
                 }
             }
@@ -126,7 +134,7 @@ class TextHandler
                     $subject,
                     $body,
                     $ctx,
-                    $project ?? null
+                    $projectId
                 );
                 $insertId = $entryId;
             } else {
@@ -136,7 +144,7 @@ class TextHandler
                     $subject,
                     $body,
                     $ctx,
-                    $project ?? null
+                    $projectId
                 );
             }
         }

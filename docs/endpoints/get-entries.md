@@ -17,6 +17,7 @@ GET /entries?page=1&per_page=20
 |-----------|------|---------|-------|-------------|
 | `page` | int | 1 | 1+ | Page number |
 | `per_page` | int | 20 | 1–100 | Items per page |
+| `project_id` | int | — | — | Filter entries by project ID |
 
 ## Authentication
 

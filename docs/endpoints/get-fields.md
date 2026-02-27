@@ -51,10 +51,10 @@ Requires `api_enabled` to be `true` in config. Does **not** require `db_enabled`
     },
     {
       "name": "_project",
-      "type": "string",
-      "description": "Tag the entry with a project name",
+      "type": "int",
+      "description": "Tag the entry with a project ID from the projects table",
       "accepted_values": [
-        {"value": "My Project", "description": "Free-text project name to tag the entry with"}
+        {"value": 1, "description": "ID of the project (must exist in projects table)"}
       ]
     }
   ]

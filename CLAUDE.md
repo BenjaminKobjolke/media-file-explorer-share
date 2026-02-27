@@ -36,6 +36,7 @@ Fields prefixed with `_` are internal control fields stripped before storage:
 |---|---|---|
 | `_id` | int | Append mode — attach to existing entry instead of creating new one |
 | `_email` | bool | `false` suppresses email for this request even when `email_enabled` is on |
+| `_project` | int | Tag entry with a project ID (must exist in `projects` table); returns 400 if not found |
 
 #### Append Mode
 
@@ -49,7 +50,7 @@ Send `_id` with your POST to attach text/files to an existing entry:
 
 1. `api.php` loads config + Composer autoloader, gates on `api_enabled`
 2. Creates a Slim 4 app with JSON error handling
-3. `GET /entries` — requires `db_enabled`, optional Basic Auth, paginated entry list with attachment counts (query params: `page`, `per_page`)
+3. `GET /entries` — requires `db_enabled`, optional Basic Auth, paginated entry list with attachment counts (query params: `page`, `per_page`, `project_id`)
 4. `GET /entries/{id}` — requires `db_enabled`, optional Basic Auth, then `DatabaseAction::getByIdWithAttachments()` returns entry with nested attachments array and `file_url` links
 5. `POST /entries` with `{"id": 1}` body — requires `db_enabled`, alternative to `GET /entries/{id}`, same auth and response; returns 400 if `id` is missing
 6. `PUT /entries/{id}` — requires `db_enabled`, optional Basic Auth, updates subject and/or body, returns full entry
@@ -57,8 +58,12 @@ Send `_id` with your POST to attach text/files to an existing entry:
 8. `DELETE /attachments/{id}` — requires `db_enabled`, optional Basic Auth, deletes single attachment + file from disk
 9. `GET /entries/{id}/file` — requires `db_enabled`, optional Basic Auth, serves entry's main file
 10. `GET /files/{id}` — requires `db_enabled`, optional Basic Auth, serves attachment file from disk with `realpath()` traversal protection
-11. `GET /fields` — no auth, no `db_enabled` required; returns reserved field metadata
-12. `GET /auth` — no auth, no `db_enabled` required; returns `{"method": "none"|"basic"}` indicating required auth method
+11. `GET /projects` — requires `db_enabled`, optional Basic Auth, lists all projects with `entry_count`
+12. `POST /projects` with `{"name": "..."}` body — requires `db_enabled`, optional Basic Auth, creates project; 409 on duplicate name
+13. `PUT /projects/{id}` with `{"name": "..."}` body — requires `db_enabled`, optional Basic Auth, renames project; 404/409
+14. `DELETE /projects/{id}` — requires `db_enabled`, optional Basic Auth, deletes project, sets `project_id = NULL` on entries/attachments
+15. `GET /fields` — no auth, no `db_enabled` required; returns reserved field metadata
+16. `GET /auth` — no auth, no `db_enabled` required; returns `{"method": "none"|"basic"}` indicating required auth method
 13. CORS middleware handles preflight OPTIONS requests for configured origins (`cors_origins` in config)
 14. All JSON responses include `_version` (from `VERSION` file) and optionally `_deploy_id` (from `deploy.ver`) as top-level keys; array responses are wrapped in a `{"_version": ..., "data": [...]}` envelope
 

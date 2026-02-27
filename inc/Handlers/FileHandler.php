@@ -62,7 +62,15 @@ class FileHandler
             $raw = $_POST['_email'];
             $emailOverride = ($raw === 'false' || $raw === '0' || $raw === '') ? false : $raw;
         }
-        $project = isset($_POST['_project']) ? (string) $_POST['_project'] : null;
+        $projectId = isset($_POST['_project']) ? (int) $_POST['_project'] : null;
+
+        if ($projectId !== null && !empty($config['db_enabled'])) {
+            $proj = DatabaseAction::getProjectById($config['db_path'], $projectId);
+            if ($proj === null) {
+                http_response_code(400);
+                exit('Project not found');
+            }
+        }
 
         if ($entryId !== null && !empty($config['db_enabled'])) {
             $parent = DatabaseAction::getById($config['db_path'], $entryId);
@@ -117,7 +125,7 @@ class FileHandler
                     $filePath,
                     $body,
                     $ctx,
-                    $project
+                    $projectId
                 );
                 $insertId = $entryId;
             } else {
@@ -130,7 +138,7 @@ class FileHandler
                     $filePath,
                     $ctx,
                     $body,
-                    $project
+                    $projectId
                 );
             }
         }

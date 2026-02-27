@@ -95,21 +95,24 @@ curl -X POST https://example.com/share.php \
 
 ---
 
-## `_project` — Project Tag
+## `_project` — Project ID
 
-Tag the entry with a project name for grouping and filtering.
+Tag the entry with a project ID from the `projects` table.
 
 | Property | Value |
 |----------|-------|
-| Type | `string` |
+| Type | `int` |
 | Handlers | `TextHandler`, `FileHandler` |
 | Default | None (field is optional) |
+| Requires | `db_enabled = true` for validation |
 
 ### Behavior
 
-- When present, the value is stored in the entry's `project` column
+- When present, the value is cast to `int` and validated against the `projects` table
+- Returns **400** `"Project not found"` if the project ID does not exist
+- The value is stored in the entry's `project_id` column
 - The field is stripped from the stored body — it never appears in the `body` or `subject` columns
-- Any non-empty string is accepted as a valid project name
+- Use `GET /projects` to list available projects, `POST /projects` to create new ones
 
 ### Examples
 
@@ -118,7 +121,7 @@ Tag the entry with a project name for grouping and filtering.
 ```bash
 curl -X POST https://example.com/share.php \
   -H "Content-Type: application/json" \
-  -d '{"_project": "My Project", "text_or_url": "Note for this project"}'
+  -d '{"_project": 1, "text_or_url": "Note for this project"}'
 ```
 
 **Tag a file upload with a project:**
@@ -126,7 +129,7 @@ curl -X POST https://example.com/share.php \
 ```bash
 curl -X POST https://example.com/share.php \
   -F "file=@report.pdf" \
-  -F "_project=My Project"
+  -F "_project=1"
 ```
 
 **Combine with other reserved fields:**
@@ -134,5 +137,5 @@ curl -X POST https://example.com/share.php \
 ```bash
 curl -X POST https://example.com/share.php \
   -H "Content-Type: application/json" \
-  -d '{"_id": 2, "_email": false, "_project": "My Project", "text_or_url": "Silent attachment with project tag"}'
+  -d '{"_id": 2, "_email": false, "_project": 1, "text_or_url": "Silent attachment with project tag"}'
 ```

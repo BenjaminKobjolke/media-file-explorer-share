@@ -312,8 +312,9 @@ $app->get('/entries', function (Request $request, Response $response) use ($chec
     $params = $request->getQueryParams();
     $page = max(1, (int) ($params['page'] ?? 1));
     $perPage = max(1, min(100, (int) ($params['per_page'] ?? 20)));
+    $projectId = isset($params['project_id']) ? (int) $params['project_id'] : null;
 
-    $result = DatabaseAction::getAllPaginated($config['db_path'], $page, $perPage);
+    $result = DatabaseAction::getAllPaginated($config['db_path'], $page, $perPage, $projectId);
     $response->getBody()->write((string) json_encode($result));
     return $response->withHeader('Content-Type', 'application/json');
 });
@@ -411,6 +412,127 @@ $app->delete('/attachments/{id:[0-9]+}', function (Request $request, Response $r
     return $response->withHeader('Content-Type', 'application/json');
 });
 
+// -- Project routes ----------------------------------------------------------
+
+$app->get('/projects', function (Request $request, Response $response) use ($checkAuth, $checkDb, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    $projects = DatabaseAction::getAllProjects($config['db_path']);
+    $response->getBody()->write((string) json_encode($projects));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+$app->post('/projects', function (Request $request, Response $response) use ($checkAuth, $checkDb, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    $body = json_decode((string) $request->getBody(), true);
+    $name = isset($body['name']) ? trim((string) $body['name']) : '';
+    if ($name === '') {
+        $response->getBody()->write((string) json_encode(['error' => 'Project name is required']));
+        return $response
+            ->withStatus(400)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    try {
+        $id = DatabaseAction::createProject($config['db_path'], $name);
+    } catch (\PDOException $e) {
+        if (strpos($e->getMessage(), 'UNIQUE') !== false) {
+            $response->getBody()->write((string) json_encode(['error' => 'Project name already exists']));
+            return $response
+                ->withStatus(409)
+                ->withHeader('Content-Type', 'application/json');
+        }
+        throw $e;
+    }
+
+    $project = DatabaseAction::getProjectById($config['db_path'], $id);
+    $response->getBody()->write((string) json_encode($project));
+    return $response
+        ->withStatus(201)
+        ->withHeader('Content-Type', 'application/json');
+});
+
+$app->put('/projects/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    $body = json_decode((string) $request->getBody(), true);
+    $name = isset($body['name']) ? trim((string) $body['name']) : '';
+    if ($name === '') {
+        $response->getBody()->write((string) json_encode(['error' => 'Project name is required']));
+        return $response
+            ->withStatus(400)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    try {
+        $updated = DatabaseAction::updateProject($config['db_path'], (int) $args['id'], $name);
+    } catch (\PDOException $e) {
+        if (strpos($e->getMessage(), 'UNIQUE') !== false) {
+            $response->getBody()->write((string) json_encode(['error' => 'Project name already exists']));
+            return $response
+                ->withStatus(409)
+                ->withHeader('Content-Type', 'application/json');
+        }
+        throw $e;
+    }
+
+    if ($updated === null) {
+        $response->getBody()->write((string) json_encode(['error' => 'Project not found']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    $response->getBody()->write((string) json_encode($updated));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+$app->delete('/projects/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    $deleted = DatabaseAction::deleteProject($config['db_path'], (int) $args['id']);
+    if (!$deleted) {
+        $response->getBody()->write((string) json_encode(['error' => 'Project not found']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    $response->getBody()->write((string) json_encode(['message' => 'Project deleted']));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+// -- Meta routes -------------------------------------------------------------
+
 $app->get('/auth', function (Request $request, Response $response) use ($config): Response {
     $method = !empty($config['api_auth_enabled']) ? 'basic' : 'none';
     $response->getBody()->write((string) json_encode(['method' => $method]));
@@ -438,10 +560,10 @@ $app->get('/fields', function (Request $request, Response $response) : Response 
         ],
         [
             'name' => '_project',
-            'type' => 'string',
-            'description' => 'Tag the entry with a project name',
+            'type' => 'int',
+            'description' => 'Tag the entry with a project ID from the projects table',
             'accepted_values' => [
-                ['value' => 'My Project', 'description' => 'Free-text project name to tag the entry with'],
+                ['value' => 1, 'description' => 'ID of the project (must exist in projects table)'],
             ],
         ],
     ];
