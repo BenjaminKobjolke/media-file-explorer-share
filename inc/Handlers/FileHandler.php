@@ -62,13 +62,22 @@ class FileHandler
             $raw = $_POST['_email'];
             $emailOverride = ($raw === 'false' || $raw === '0' || $raw === '') ? false : $raw;
         }
-        $projectId = isset($_POST['_project']) ? (int) $_POST['_project'] : null;
-
-        if ($projectId !== null && !empty($config['db_enabled'])) {
-            $proj = DatabaseAction::getProjectById($config['db_path'], $projectId);
-            if ($proj === null) {
-                http_response_code(400);
-                exit('Project not found');
+        // Extract dynamic custom field values
+        $fieldValues = [];
+        $fieldExcludes = [];
+        if (!empty($config['db_enabled'])) {
+            $customFields = DatabaseAction::getAllCustomFields($config['db_path']);
+            foreach ($customFields as $cf) {
+                $key = '_' . $cf['name'];
+                $fieldExcludes[$key] = true;
+                if (isset($_POST[$key])) {
+                    $optId = (int) $_POST[$key];
+                    if (DatabaseAction::getOptionById($config['db_path'], $cf['name'], $optId) === null) {
+                        http_response_code(400);
+                        exit(ucfirst($cf['name']) . ' not found');
+                    }
+                    $fieldValues[$cf['name']] = $optId;
+                }
             }
         }
 
@@ -84,7 +93,7 @@ class FileHandler
         }
 
         // -- Capture extra POST fields as JSON body --------
-        $extraFields = array_diff_key($_POST, ['file' => true, '_id' => true, '_email' => true, '_project' => true]);
+        $extraFields = array_diff_key($_POST, array_merge(['file' => true, '_id' => true, '_email' => true], $fieldExcludes));
         $body = !empty($extraFields) ? json_encode($extraFields, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null;
 
         // -- Build metadata HTML --------------------------
@@ -116,7 +125,7 @@ class FileHandler
         if (!empty($config['db_enabled'])) {
             if ($entryId !== null) {
                 // Append mode: add as attachment to existing entry
-                DatabaseAction::appendFile(
+                $attachmentId = DatabaseAction::appendFile(
                     $config['db_path'],
                     $entryId,
                     $subject,
@@ -124,9 +133,12 @@ class FileHandler
                     $file['size'],
                     $filePath,
                     $body,
-                    $ctx,
-                    $projectId
+                    $ctx
                 );
+                // Write custom field pivot rows for attachment
+                foreach ($fieldValues as $fn => $optId) {
+                    DatabaseAction::setAttachmentFieldValue($config['db_path'], $attachmentId, $fn, $optId);
+                }
                 $insertId = $entryId;
             } else {
                 // Normal mode: create new entry
@@ -137,9 +149,12 @@ class FileHandler
                     $file['size'],
                     $filePath,
                     $ctx,
-                    $body,
-                    $projectId
+                    $body
                 );
+                // Write custom field pivot rows for entry
+                foreach ($fieldValues as $fn => $optId) {
+                    DatabaseAction::setEntryFieldValue($config['db_path'], $insertId, $fn, $optId);
+                }
             }
         }
 

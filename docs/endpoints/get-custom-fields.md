@@ -1,15 +1,15 @@
-# GET `/projects`
+# GET `/custom-fields`
 
-List all projects with entry counts.
+List all custom fields with option counts.
 
 ## URL
 
 ```
-GET /projects
+GET /custom-fields
 ```
 
-- **Clean URL:** `api/projects`
-- **Direct:** `api.php/projects`
+- **Clean URL:** `api/custom-fields`
+- **Direct:** `api.php/custom-fields`
 
 ## Authentication
 
@@ -33,10 +33,18 @@ Requires both `api_enabled` and `db_enabled` to be `true` in config.
   "_version": "1.1.0",
   "data": [
     {
-      "id": 1,
-      "name": "My Project",
+      "name": "status",
+      "description": "Entry lifecycle status",
+      "sort_order": 0,
       "created_at": "2025-01-15T10:30:00+00:00",
-      "entry_count": 5
+      "option_count": 3
+    },
+    {
+      "name": "resolution",
+      "description": "Resolution reason for the entry",
+      "sort_order": 1,
+      "created_at": "2025-01-15T10:30:00+00:00",
+      "option_count": 4
     }
   ]
 }
@@ -44,9 +52,10 @@ Requires both `api_enabled` and `db_enabled` to be `true` in config.
 
 ### Response Notes
 
-- Projects are ordered alphabetically by `name`
-- `entry_count` is the number of entries tagged with this project
+- Fields are ordered by `sort_order ASC`, then `name ASC`
+- `option_count` is the number of options defined for each field
 - The response is wrapped in a `{"data": [...]}` envelope by the version middleware
+- Default fields (`status`, `resolution`) are seeded automatically on first database access
 
 ## Error Codes
 
@@ -57,6 +66,6 @@ Requires both `api_enabled` and `db_enabled` to be `true` in config.
 ## Example
 
 ```bash
-curl https://example.com/api/projects \
+curl https://example.com/api/custom-fields \
   -u user:pass
 ```

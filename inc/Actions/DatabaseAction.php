@@ -54,35 +54,58 @@ class DatabaseAction
             created_at TEXT    NOT NULL
         )');
 
-        // Schema migrations
-        $cols = $pdo->query("PRAGMA table_info(entries)")->fetchAll(PDO::FETCH_COLUMN, 1);
-        if (!in_array('project', $cols, true)) {
-            $pdo->exec("ALTER TABLE entries ADD COLUMN project TEXT");
-            $pdo->exec("ALTER TABLE attachments ADD COLUMN project TEXT");
-        }
-
-        // Projects table + project_id migration
-        $pdo->exec('CREATE TABLE IF NOT EXISTS projects (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            name       TEXT    NOT NULL UNIQUE,
-            created_at TEXT    NOT NULL
+        // Custom fields tables
+        $pdo->exec('CREATE TABLE IF NOT EXISTS custom_fields (
+            name        TEXT PRIMARY KEY,
+            description TEXT,
+            sort_order  INTEGER DEFAULT 0,
+            created_at  TEXT NOT NULL
         )');
 
-        if (!in_array('project_id', $cols, true)) {
-            $pdo->exec("ALTER TABLE entries ADD COLUMN project_id INTEGER");
-            $attCols = $pdo->query("PRAGMA table_info(attachments)")->fetchAll(PDO::FETCH_COLUMN, 1);
-            if (!in_array('project_id', $attCols, true)) {
-                $pdo->exec("ALTER TABLE attachments ADD COLUMN project_id INTEGER");
-            }
+        $pdo->exec('CREATE TABLE IF NOT EXISTS field_options (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            field_name  TEXT NOT NULL REFERENCES custom_fields(name),
+            name        TEXT NOT NULL,
+            created_at  TEXT NOT NULL,
+            UNIQUE(field_name, name)
+        )');
 
-            // Auto-migrate: insert distinct project names into projects table, backfill project_id
-            $pdo->exec("INSERT OR IGNORE INTO projects (name, created_at)
-                SELECT DISTINCT project, datetime('now') FROM entries WHERE project IS NOT NULL AND project != ''");
-            $pdo->exec("INSERT OR IGNORE INTO projects (name, created_at)
-                SELECT DISTINCT project, datetime('now') FROM attachments WHERE project IS NOT NULL AND project != ''
-                AND project NOT IN (SELECT name FROM projects)");
-            $pdo->exec("UPDATE entries SET project_id = (SELECT id FROM projects WHERE projects.name = entries.project) WHERE project IS NOT NULL");
-            $pdo->exec("UPDATE attachments SET project_id = (SELECT id FROM projects WHERE projects.name = attachments.project) WHERE project IS NOT NULL");
+        $pdo->exec('CREATE TABLE IF NOT EXISTS entry_field_values (
+            entry_id    INTEGER NOT NULL REFERENCES entries(id),
+            field_name  TEXT NOT NULL,
+            option_id   INTEGER NOT NULL REFERENCES field_options(id),
+            PRIMARY KEY (entry_id, field_name)
+        )');
+
+        $pdo->exec('CREATE TABLE IF NOT EXISTS attachment_field_values (
+            attachment_id INTEGER NOT NULL REFERENCES attachments(id),
+            field_name    TEXT NOT NULL,
+            option_id     INTEGER NOT NULL REFERENCES field_options(id),
+            PRIMARY KEY (attachment_id, field_name)
+        )');
+
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_fo_field ON field_options(field_name)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_efv_lookup ON entry_field_values(field_name, option_id)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_afv_lookup ON attachment_field_values(field_name, option_id)');
+
+        // Seed default custom fields (idempotent)
+        $defaults = [
+            'project' => ['description' => 'Tag entry with a project', 'sort_order' => -1, 'options' => []],
+            'status' => ['description' => 'Entry lifecycle status', 'sort_order' => 0, 'options' => ['open', 'in progress', 'closed']],
+            'resolution' => ['description' => 'Resolution reason for the entry', 'sort_order' => 1, 'options' => ['Fixed', 'Duplicate', "Won't Fix", 'Not a Bug']],
+        ];
+        foreach ($defaults as $fieldName => $def) {
+            $pdo->exec("INSERT OR IGNORE INTO custom_fields (name, description, sort_order, created_at) VALUES ("
+                . $pdo->quote($fieldName) . ", "
+                . $pdo->quote($def['description']) . ", "
+                . $def['sort_order'] . ", "
+                . $pdo->quote(date('c')) . ")");
+            foreach ($def['options'] as $optName) {
+                $pdo->exec("INSERT OR IGNORE INTO field_options (field_name, name, created_at) VALUES ("
+                    . $pdo->quote($fieldName) . ", "
+                    . $pdo->quote($optName) . ", "
+                    . $pdo->quote(date('c')) . ")");
+            }
         }
 
         return $pdo;
@@ -97,13 +120,13 @@ class DatabaseAction
      * @param RequestContext $ctx     Request metadata.
      * @return int Insert ID.
      */
-    public static function saveText(string $dbPath, string $subject, string $body, RequestContext $ctx, ?int $projectId = null): int
+    public static function saveText(string $dbPath, string $subject, string $body, RequestContext $ctx): int
     {
         $pdo = self::getConnection($dbPath);
 
         $stmt = $pdo->prepare(
-            'INSERT INTO entries (type, subject, body, ip, ua, created_at, project_id)
-             VALUES (:type, :subject, :body, :ip, :ua, :created_at, :project_id)'
+            'INSERT INTO entries (type, subject, body, ip, ua, created_at)
+             VALUES (:type, :subject, :body, :ip, :ua, :created_at)'
         );
         $stmt->execute([
             ':type'       => 'text',
@@ -112,7 +135,6 @@ class DatabaseAction
             ':ip'         => $ctx->ip,
             ':ua'         => $ctx->ua,
             ':created_at' => $ctx->time,
-            ':project_id' => $projectId,
         ]);
 
         return (int) $pdo->lastInsertId();
@@ -137,14 +159,13 @@ class DatabaseAction
         int $fileSize,
         ?string $filePath,
         RequestContext $ctx,
-        ?string $body = null,
-        ?int $projectId = null
+        ?string $body = null
     ): int {
         $pdo = self::getConnection($dbPath);
 
         $stmt = $pdo->prepare(
-            'INSERT INTO entries (type, subject, body, filename, file_path, file_size, ip, ua, created_at, project_id)
-             VALUES (:type, :subject, :body, :filename, :file_path, :file_size, :ip, :ua, :created_at, :project_id)'
+            'INSERT INTO entries (type, subject, body, filename, file_path, file_size, ip, ua, created_at)
+             VALUES (:type, :subject, :body, :filename, :file_path, :file_size, :ip, :ua, :created_at)'
         );
         $stmt->execute([
             ':type'       => 'file',
@@ -156,7 +177,6 @@ class DatabaseAction
             ':ip'         => $ctx->ip,
             ':ua'         => $ctx->ua,
             ':created_at' => $ctx->time,
-            ':project_id' => $projectId,
         ]);
 
         return (int) $pdo->lastInsertId();
@@ -188,13 +208,13 @@ class DatabaseAction
      * @param RequestContext $ctx     Request metadata.
      * @return int Attachment insert ID.
      */
-    public static function appendText(string $dbPath, int $entryId, string $subject, string $body, RequestContext $ctx, ?int $projectId = null): int
+    public static function appendText(string $dbPath, int $entryId, string $subject, string $body, RequestContext $ctx): int
     {
         $pdo = self::getConnection($dbPath);
 
         $stmt = $pdo->prepare(
-            'INSERT INTO attachments (entry_id, type, subject, body, ip, ua, created_at, project_id)
-             VALUES (:entry_id, :type, :subject, :body, :ip, :ua, :created_at, :project_id)'
+            'INSERT INTO attachments (entry_id, type, subject, body, ip, ua, created_at)
+             VALUES (:entry_id, :type, :subject, :body, :ip, :ua, :created_at)'
         );
         $stmt->execute([
             ':entry_id'   => $entryId,
@@ -204,7 +224,6 @@ class DatabaseAction
             ':ip'         => $ctx->ip,
             ':ua'         => $ctx->ua,
             ':created_at' => $ctx->time,
-            ':project_id' => $projectId,
         ]);
 
         return (int) $pdo->lastInsertId();
@@ -231,14 +250,13 @@ class DatabaseAction
         int $fileSize,
         ?string $filePath,
         ?string $body,
-        RequestContext $ctx,
-        ?int $projectId = null
+        RequestContext $ctx
     ): int {
         $pdo = self::getConnection($dbPath);
 
         $stmt = $pdo->prepare(
-            'INSERT INTO attachments (entry_id, type, subject, body, filename, file_path, file_size, ip, ua, created_at, project_id)
-             VALUES (:entry_id, :type, :subject, :body, :filename, :file_path, :file_size, :ip, :ua, :created_at, :project_id)'
+            'INSERT INTO attachments (entry_id, type, subject, body, filename, file_path, file_size, ip, ua, created_at)
+             VALUES (:entry_id, :type, :subject, :body, :filename, :file_path, :file_size, :ip, :ua, :created_at)'
         );
         $stmt->execute([
             ':entry_id'   => $entryId,
@@ -251,7 +269,6 @@ class DatabaseAction
             ':ip'         => $ctx->ip,
             ':ua'         => $ctx->ua,
             ':created_at' => $ctx->time,
-            ':project_id' => $projectId,
         ]);
 
         return (int) $pdo->lastInsertId();
@@ -290,8 +307,6 @@ class DatabaseAction
         // Cast integer fields
         $entry['id'] = (int) $entry['id'];
         $entry['file_size'] = $entry['file_size'] !== null ? (int) $entry['file_size'] : null;
-        $entry['project_id'] = $entry['project_id'] !== null ? (int) $entry['project_id'] : null;
-        unset($entry['project']);
 
         // Decode body from JSON string to object
         if ($entry['body'] !== null) {
@@ -306,6 +321,12 @@ class DatabaseAction
             $entry['file_url'] = $baseUrl . '/entries/' . $entry['id'] . '/file';
         }
 
+        // Add custom field values
+        $fieldValues = self::getEntryFieldValues($dbPath, (int) $entry['id']);
+        foreach ($fieldValues as $fn => $optId) {
+            $entry[$fn . '_id'] = $optId;
+        }
+
         // Strip file_path from response
         unset($entry['file_path']);
 
@@ -315,8 +336,6 @@ class DatabaseAction
             $att['id'] = (int) $att['id'];
             $att['entry_id'] = (int) $att['entry_id'];
             $att['file_size'] = $att['file_size'] !== null ? (int) $att['file_size'] : null;
-            $att['project_id'] = $att['project_id'] !== null ? (int) $att['project_id'] : null;
-            unset($att['project']);
 
             // Decode body from JSON string to object
             if ($att['body'] !== null) {
@@ -329,6 +348,12 @@ class DatabaseAction
             // Add file_url for file-type attachments with stored files
             if ($att['type'] === 'file' && $att['file_path'] !== null) {
                 $att['file_url'] = $baseUrl . '/files/' . $att['id'];
+            }
+
+            // Add custom field values
+            $attFieldValues = self::getAttachmentFieldValues($dbPath, (int) $att['id']);
+            foreach ($attFieldValues as $fn => $optId) {
+                $att[$fn . '_id'] = $optId;
             }
 
             // Strip internal fields from response
@@ -365,18 +390,27 @@ class DatabaseAction
      * @param int    $perPage Items per page.
      * @return array {entries: array, total: int, page: int, per_page: int}
      */
-    public static function getAllPaginated(string $dbPath, int $page, int $perPage, ?int $projectId = null): array
+    public static function getAllPaginated(string $dbPath, int $page, int $perPage, array $fieldFilters = []): array
     {
         $pdo = self::getConnection($dbPath);
 
-        $where = '';
+        $joins = '';
         $countParams = [];
-        if ($projectId !== null) {
-            $where = ' WHERE e.project_id = :project_id';
-            $countParams[':project_id'] = $projectId;
+
+        // Dynamic field filter joins
+        $joinIdx = 0;
+        foreach ($fieldFilters as $fn => $optId) {
+            $alias = 'efv' . $joinIdx;
+            $joins .= " INNER JOIN entry_field_values {$alias}"
+                    . " ON {$alias}.entry_id = e.id"
+                    . " AND {$alias}.field_name = :fn{$joinIdx}"
+                    . " AND {$alias}.option_id = :fv{$joinIdx}";
+            $countParams[":fn{$joinIdx}"] = $fn;
+            $countParams[":fv{$joinIdx}"] = $optId;
+            $joinIdx++;
         }
 
-        $countStmt = $pdo->prepare('SELECT COUNT(*) FROM entries e' . $where);
+        $countStmt = $pdo->prepare('SELECT COUNT(*) FROM entries e' . $joins);
         $countStmt->execute($countParams);
         $total = (int) $countStmt->fetchColumn();
 
@@ -385,13 +419,16 @@ class DatabaseAction
             'SELECT e.*, COUNT(a.id) AS attachment_count
              FROM entries e
              LEFT JOIN attachments a ON a.entry_id = e.id'
-             . $where .
+             . $joins .
             ' GROUP BY e.id
              ORDER BY e.created_at DESC
              LIMIT :limit OFFSET :offset'
         );
-        if ($projectId !== null) {
-            $stmt->bindValue(':project_id', $projectId, PDO::PARAM_INT);
+        $joinIdx = 0;
+        foreach ($fieldFilters as $fn => $optId) {
+            $stmt->bindValue(":fn{$joinIdx}", $fn, PDO::PARAM_STR);
+            $stmt->bindValue(":fv{$joinIdx}", $optId, PDO::PARAM_INT);
+            $joinIdx++;
         }
         $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
         $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
@@ -401,9 +438,14 @@ class DatabaseAction
         foreach ($entries as &$entry) {
             $entry['id'] = (int) $entry['id'];
             $entry['file_size'] = $entry['file_size'] !== null ? (int) $entry['file_size'] : null;
-            $entry['project_id'] = $entry['project_id'] !== null ? (int) $entry['project_id'] : null;
             $entry['attachment_count'] = (int) $entry['attachment_count'];
-            unset($entry['file_path'], $entry['project']);
+            unset($entry['file_path']);
+
+            // Add custom field values
+            $fv = self::getEntryFieldValues($dbPath, $entry['id']);
+            foreach ($fv as $fn => $optId) {
+                $entry[$fn . '_id'] = $optId;
+            }
         }
         unset($entry);
 
@@ -433,8 +475,18 @@ class DatabaseAction
 
         $attachments = self::getAttachments($dbPath, $id);
 
+        // Clean up pivot rows for attachments
+        foreach ($attachments as $att) {
+            $stmt = $pdo->prepare('DELETE FROM attachment_field_values WHERE attachment_id = :id');
+            $stmt->execute([':id' => $att['id']]);
+        }
+
         $stmt = $pdo->prepare('DELETE FROM attachments WHERE entry_id = :entry_id');
         $stmt->execute([':entry_id' => $id]);
+
+        // Clean up entry pivot rows
+        $stmt = $pdo->prepare('DELETE FROM entry_field_values WHERE entry_id = :id');
+        $stmt->execute([':id' => $id]);
 
         $stmt = $pdo->prepare('DELETE FROM entries WHERE id = :id');
         $stmt->execute([':id' => $id]);
@@ -452,7 +504,7 @@ class DatabaseAction
      * @param string|null $body    New body, or null to leave unchanged.
      * @return array|null Updated row, or null if not found.
      */
-    public static function updateEntry(string $dbPath, int $id, ?string $subject, ?string $body): ?array
+    public static function updateEntry(string $dbPath, int $id, ?string $subject, ?string $body, array $fieldValues = []): ?array
     {
         $entry = self::getById($dbPath, $id);
         if ($entry === null) {
@@ -478,6 +530,10 @@ class DatabaseAction
             $stmt->execute($params);
         }
 
+        foreach ($fieldValues as $fn => $optId) {
+            self::setEntryFieldValue($dbPath, $id, $fn, $optId);
+        }
+
         return self::getById($dbPath, $id);
     }
 
@@ -496,51 +552,192 @@ class DatabaseAction
         }
 
         $pdo = self::getConnection($dbPath);
+        $stmt = $pdo->prepare('DELETE FROM attachment_field_values WHERE attachment_id = :id');
+        $stmt->execute([':id' => $id]);
         $stmt = $pdo->prepare('DELETE FROM attachments WHERE id = :id');
         $stmt->execute([':id' => $id]);
 
         return $attachment;
     }
 
-    // -- Project CRUD --------------------------------------------------------
+    // -- Custom field CRUD ---------------------------------------------------
 
     /**
-     * Fetch all projects with entry counts.
+     * Fetch all custom fields with option counts.
      *
      * @param string $dbPath Absolute path to the .sqlite file.
-     * @return array List of project rows with entry_count.
+     * @return array List of custom field rows with option_count.
      */
-    public static function getAllProjects(string $dbPath): array
+    public static function getAllCustomFields(string $dbPath): array
     {
         $pdo = self::getConnection($dbPath);
         $stmt = $pdo->query(
-            'SELECT p.*, COUNT(e.id) AS entry_count
-             FROM projects p
-             LEFT JOIN entries e ON e.project_id = p.id
-             GROUP BY p.id
-             ORDER BY p.name ASC'
+            'SELECT cf.*, COUNT(fo.id) AS option_count
+             FROM custom_fields cf
+             LEFT JOIN field_options fo ON fo.field_name = cf.name
+             GROUP BY cf.name
+             ORDER BY cf.sort_order ASC, cf.name ASC'
         );
-        $projects = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($projects as &$project) {
-            $project['id'] = (int) $project['id'];
-            $project['entry_count'] = (int) $project['entry_count'];
+        $fields = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($fields as &$field) {
+            $field['sort_order'] = (int) $field['sort_order'];
+            $field['option_count'] = (int) $field['option_count'];
         }
-        unset($project);
-        return $projects;
+        unset($field);
+        return $fields;
     }
 
     /**
-     * Fetch a single project by its ID.
+     * Fetch a single custom field by name.
      *
      * @param string $dbPath Absolute path to the .sqlite file.
-     * @param int    $id     Project ID.
+     * @param string $name   Field name.
      * @return array|null Row as associative array, or null if not found.
      */
-    public static function getProjectById(string $dbPath, int $id): ?array
+    public static function getCustomFieldByName(string $dbPath, string $name): ?array
     {
         $pdo = self::getConnection($dbPath);
-        $stmt = $pdo->prepare('SELECT * FROM projects WHERE id = :id');
-        $stmt->execute([':id' => $id]);
+        $stmt = $pdo->prepare('SELECT * FROM custom_fields WHERE name = :name');
+        $stmt->execute([':name' => $name]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return null;
+        }
+        $row['sort_order'] = (int) $row['sort_order'];
+        return $row;
+    }
+
+    /**
+     * Create a new custom field.
+     *
+     * @param string $dbPath      Absolute path to the .sqlite file.
+     * @param string $name        Field name (must be unique).
+     * @param string $description Field description.
+     * @param int    $sortOrder   Display sort order.
+     */
+    public static function createCustomField(string $dbPath, string $name, string $description, int $sortOrder = 0): void
+    {
+        $pdo = self::getConnection($dbPath);
+        $stmt = $pdo->prepare(
+            'INSERT INTO custom_fields (name, description, sort_order, created_at)
+             VALUES (:name, :description, :sort_order, :created_at)'
+        );
+        $stmt->execute([
+            ':name'        => $name,
+            ':description' => $description,
+            ':sort_order'  => $sortOrder,
+            ':created_at'  => date('c'),
+        ]);
+    }
+
+    /**
+     * Update a custom field's description and/or sort_order.
+     *
+     * @param string   $dbPath      Absolute path to the .sqlite file.
+     * @param string   $name        Field name.
+     * @param string|null $description New description, or null to leave unchanged.
+     * @param int|null $sortOrder   New sort order, or null to leave unchanged.
+     * @return array|null Updated row, or null if not found.
+     */
+    public static function updateCustomField(string $dbPath, string $name, ?string $description, ?int $sortOrder): ?array
+    {
+        $field = self::getCustomFieldByName($dbPath, $name);
+        if ($field === null) {
+            return null;
+        }
+
+        $fields = [];
+        $params = [':name' => $name];
+
+        if ($description !== null) {
+            $fields[] = 'description = :description';
+            $params[':description'] = $description;
+        }
+        if ($sortOrder !== null) {
+            $fields[] = 'sort_order = :sort_order';
+            $params[':sort_order'] = $sortOrder;
+        }
+
+        if (!empty($fields)) {
+            $pdo = self::getConnection($dbPath);
+            $sql = 'UPDATE custom_fields SET ' . implode(', ', $fields) . ' WHERE name = :name';
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+        }
+
+        return self::getCustomFieldByName($dbPath, $name);
+    }
+
+    /**
+     * Delete a custom field and all associated options + pivot rows.
+     *
+     * @param string $dbPath Absolute path to the .sqlite file.
+     * @param string $name   Field name.
+     * @return bool True if deleted, false if not found.
+     */
+    public static function deleteCustomField(string $dbPath, string $name): bool
+    {
+        $field = self::getCustomFieldByName($dbPath, $name);
+        if ($field === null) {
+            return false;
+        }
+
+        $pdo = self::getConnection($dbPath);
+        $stmt = $pdo->prepare('DELETE FROM entry_field_values WHERE field_name = :name');
+        $stmt->execute([':name' => $name]);
+        $stmt = $pdo->prepare('DELETE FROM attachment_field_values WHERE field_name = :name');
+        $stmt->execute([':name' => $name]);
+        $stmt = $pdo->prepare('DELETE FROM field_options WHERE field_name = :name');
+        $stmt->execute([':name' => $name]);
+        $stmt = $pdo->prepare('DELETE FROM custom_fields WHERE name = :name');
+        $stmt->execute([':name' => $name]);
+
+        return true;
+    }
+
+    // -- Field option CRUD ---------------------------------------------------
+
+    /**
+     * Fetch all options for a given custom field with entry counts.
+     *
+     * @param string $dbPath    Absolute path to the .sqlite file.
+     * @param string $fieldName Custom field name.
+     * @return array List of option rows with entry_count.
+     */
+    public static function getAllOptions(string $dbPath, string $fieldName): array
+    {
+        $pdo = self::getConnection($dbPath);
+        $stmt = $pdo->prepare(
+            'SELECT fo.*, COUNT(efv.entry_id) AS entry_count
+             FROM field_options fo
+             LEFT JOIN entry_field_values efv ON efv.option_id = fo.id AND efv.field_name = fo.field_name
+             WHERE fo.field_name = :field_name
+             GROUP BY fo.id
+             ORDER BY fo.id ASC'
+        );
+        $stmt->execute([':field_name' => $fieldName]);
+        $options = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($options as &$opt) {
+            $opt['id'] = (int) $opt['id'];
+            $opt['entry_count'] = (int) $opt['entry_count'];
+        }
+        unset($opt);
+        return $options;
+    }
+
+    /**
+     * Fetch a single option by ID, scoped to a field.
+     *
+     * @param string $dbPath    Absolute path to the .sqlite file.
+     * @param string $fieldName Custom field name.
+     * @param int    $id        Option ID.
+     * @return array|null Row as associative array, or null if not found.
+     */
+    public static function getOptionById(string $dbPath, string $fieldName, int $id): ?array
+    {
+        $pdo = self::getConnection($dbPath);
+        $stmt = $pdo->prepare('SELECT * FROM field_options WHERE id = :id AND field_name = :field_name');
+        $stmt->execute([':id' => $id, ':field_name' => $fieldName]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($row === false) {
             return null;
@@ -550,19 +747,22 @@ class DatabaseAction
     }
 
     /**
-     * Create a new project.
+     * Create a new option for a custom field.
      *
-     * @param string $dbPath Absolute path to the .sqlite file.
-     * @param string $name   Project name (must be unique).
+     * @param string $dbPath    Absolute path to the .sqlite file.
+     * @param string $fieldName Custom field name.
+     * @param string $name      Option name (must be unique within field).
      * @return int Insert ID.
      */
-    public static function createProject(string $dbPath, string $name): int
+    public static function createOption(string $dbPath, string $fieldName, string $name): int
     {
         $pdo = self::getConnection($dbPath);
         $stmt = $pdo->prepare(
-            'INSERT INTO projects (name, created_at) VALUES (:name, :created_at)'
+            'INSERT INTO field_options (field_name, name, created_at)
+             VALUES (:field_name, :name, :created_at)'
         );
         $stmt->execute([
+            ':field_name' => $fieldName,
             ':name'       => $name,
             ':created_at' => date('c'),
         ]);
@@ -570,49 +770,213 @@ class DatabaseAction
     }
 
     /**
-     * Rename an existing project.
+     * Rename an option within a custom field.
      *
-     * @param string $dbPath Absolute path to the .sqlite file.
-     * @param int    $id     Project ID.
-     * @param string $name   New project name (must be unique).
+     * @param string $dbPath    Absolute path to the .sqlite file.
+     * @param string $fieldName Custom field name.
+     * @param int    $id        Option ID.
+     * @param string $name      New option name.
      * @return array|null Updated row, or null if not found.
      */
-    public static function updateProject(string $dbPath, int $id, string $name): ?array
+    public static function updateOption(string $dbPath, string $fieldName, int $id, string $name): ?array
     {
-        $project = self::getProjectById($dbPath, $id);
-        if ($project === null) {
+        $option = self::getOptionById($dbPath, $fieldName, $id);
+        if ($option === null) {
             return null;
         }
 
         $pdo = self::getConnection($dbPath);
-        $stmt = $pdo->prepare('UPDATE projects SET name = :name WHERE id = :id');
-        $stmt->execute([':name' => $name, ':id' => $id]);
+        $stmt = $pdo->prepare('UPDATE field_options SET name = :name WHERE id = :id AND field_name = :field_name');
+        $stmt->execute([':name' => $name, ':id' => $id, ':field_name' => $fieldName]);
 
-        return self::getProjectById($dbPath, $id);
+        return self::getOptionById($dbPath, $fieldName, $id);
     }
 
     /**
-     * Delete a project. Sets project_id to NULL on associated entries/attachments.
+     * Delete an option and its pivot rows.
      *
-     * @param string $dbPath Absolute path to the .sqlite file.
-     * @param int    $id     Project ID.
+     * @param string $dbPath    Absolute path to the .sqlite file.
+     * @param string $fieldName Custom field name.
+     * @param int    $id        Option ID.
      * @return bool True if deleted, false if not found.
      */
-    public static function deleteProject(string $dbPath, int $id): bool
+    public static function deleteOption(string $dbPath, string $fieldName, int $id): bool
     {
-        $project = self::getProjectById($dbPath, $id);
-        if ($project === null) {
+        $option = self::getOptionById($dbPath, $fieldName, $id);
+        if ($option === null) {
             return false;
         }
 
         $pdo = self::getConnection($dbPath);
-        $stmt = $pdo->prepare('UPDATE entries SET project_id = NULL WHERE project_id = :id');
-        $stmt->execute([':id' => $id]);
-        $stmt = $pdo->prepare('UPDATE attachments SET project_id = NULL WHERE project_id = :id');
-        $stmt->execute([':id' => $id]);
-        $stmt = $pdo->prepare('DELETE FROM projects WHERE id = :id');
-        $stmt->execute([':id' => $id]);
+        $stmt = $pdo->prepare('DELETE FROM entry_field_values WHERE option_id = :id AND field_name = :field_name');
+        $stmt->execute([':id' => $id, ':field_name' => $fieldName]);
+        $stmt = $pdo->prepare('DELETE FROM attachment_field_values WHERE option_id = :id AND field_name = :field_name');
+        $stmt->execute([':id' => $id, ':field_name' => $fieldName]);
+        $stmt = $pdo->prepare('DELETE FROM field_options WHERE id = :id AND field_name = :field_name');
+        $stmt->execute([':id' => $id, ':field_name' => $fieldName]);
 
         return true;
+    }
+
+    // -- Pivot methods -------------------------------------------------------
+
+    /**
+     * Set a field value on an entry (upsert).
+     *
+     * @param string $dbPath    Absolute path to the .sqlite file.
+     * @param int    $entryId   Entry ID.
+     * @param string $fieldName Custom field name.
+     * @param int    $optionId  Option ID.
+     */
+    public static function setEntryFieldValue(string $dbPath, int $entryId, string $fieldName, int $optionId): void
+    {
+        $pdo = self::getConnection($dbPath);
+        $stmt = $pdo->prepare(
+            'INSERT OR REPLACE INTO entry_field_values (entry_id, field_name, option_id)
+             VALUES (:entry_id, :field_name, :option_id)'
+        );
+        $stmt->execute([
+            ':entry_id'   => $entryId,
+            ':field_name' => $fieldName,
+            ':option_id'  => $optionId,
+        ]);
+    }
+
+    /**
+     * Set a field value on an attachment (upsert).
+     *
+     * @param string $dbPath       Absolute path to the .sqlite file.
+     * @param int    $attachmentId Attachment ID.
+     * @param string $fieldName    Custom field name.
+     * @param int    $optionId     Option ID.
+     */
+    public static function setAttachmentFieldValue(string $dbPath, int $attachmentId, string $fieldName, int $optionId): void
+    {
+        $pdo = self::getConnection($dbPath);
+        $stmt = $pdo->prepare(
+            'INSERT OR REPLACE INTO attachment_field_values (attachment_id, field_name, option_id)
+             VALUES (:attachment_id, :field_name, :option_id)'
+        );
+        $stmt->execute([
+            ':attachment_id' => $attachmentId,
+            ':field_name'    => $fieldName,
+            ':option_id'     => $optionId,
+        ]);
+    }
+
+    /**
+     * Get all field values for an entry.
+     *
+     * @param string $dbPath  Absolute path to the .sqlite file.
+     * @param int    $entryId Entry ID.
+     * @return array Associative array: ['status' => 1, 'resolution' => 3]
+     */
+    public static function getEntryFieldValues(string $dbPath, int $entryId): array
+    {
+        $pdo = self::getConnection($dbPath);
+        $stmt = $pdo->prepare('SELECT field_name, option_id FROM entry_field_values WHERE entry_id = :entry_id');
+        $stmt->execute([':entry_id' => $entryId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $result = [];
+        foreach ($rows as $row) {
+            $result[$row['field_name']] = (int) $row['option_id'];
+        }
+        return $result;
+    }
+
+    /**
+     * Get all field values for an attachment.
+     *
+     * @param string $dbPath       Absolute path to the .sqlite file.
+     * @param int    $attachmentId Attachment ID.
+     * @return array Associative array: ['status' => 1, 'resolution' => 3]
+     */
+    public static function getAttachmentFieldValues(string $dbPath, int $attachmentId): array
+    {
+        $pdo = self::getConnection($dbPath);
+        $stmt = $pdo->prepare('SELECT field_name, option_id FROM attachment_field_values WHERE attachment_id = :attachment_id');
+        $stmt->execute([':attachment_id' => $attachmentId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $result = [];
+        foreach ($rows as $row) {
+            $result[$row['field_name']] = (int) $row['option_id'];
+        }
+        return $result;
+    }
+
+    // -- Export / Import -----------------------------------------------------
+
+    /**
+     * Export all custom fields with their options as nested JSON.
+     *
+     * @param string $dbPath Absolute path to the .sqlite file.
+     * @return array ['fields' => [['name' => ..., 'description' => ..., 'sort_order' => ..., 'options' => [...]], ...]]
+     */
+    public static function exportCustomFields(string $dbPath): array
+    {
+        $pdo = self::getConnection($dbPath);
+        $fields = $pdo->query(
+            'SELECT name, description, sort_order FROM custom_fields ORDER BY sort_order ASC, name ASC'
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($fields as &$field) {
+            $field['sort_order'] = (int) $field['sort_order'];
+            $stmt = $pdo->prepare(
+                'SELECT name FROM field_options WHERE field_name = :field_name ORDER BY id ASC'
+            );
+            $stmt->execute([':field_name' => $field['name']]);
+            $field['options'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        }
+        unset($field);
+
+        return ['fields' => $fields];
+    }
+
+    /**
+     * Import custom fields with their options (merge mode — INSERT OR IGNORE).
+     *
+     * @param string $dbPath Absolute path to the .sqlite file.
+     * @param array  $fields Array of field definitions with options.
+     * @return array ['fields_created' => int, 'options_created' => int]
+     */
+    public static function importCustomFields(string $dbPath, array $fields): array
+    {
+        $pdo = self::getConnection($dbPath);
+        $fieldsCreated = 0;
+        $optionsCreated = 0;
+
+        foreach ($fields as $def) {
+            $name = $def['name'] ?? '';
+            if ($name === '') {
+                continue;
+            }
+
+            $stmt = $pdo->prepare(
+                'INSERT OR IGNORE INTO custom_fields (name, description, sort_order, created_at)
+                 VALUES (:name, :description, :sort_order, :created_at)'
+            );
+            $stmt->execute([
+                ':name'        => $name,
+                ':description' => $def['description'] ?? '',
+                ':sort_order'  => (int) ($def['sort_order'] ?? 0),
+                ':created_at'  => date('c'),
+            ]);
+            $fieldsCreated += $stmt->rowCount();
+
+            foreach ($def['options'] ?? [] as $optName) {
+                $stmt = $pdo->prepare(
+                    'INSERT OR IGNORE INTO field_options (field_name, name, created_at)
+                     VALUES (:field_name, :name, :created_at)'
+                );
+                $stmt->execute([
+                    ':field_name' => $name,
+                    ':name'       => $optName,
+                    ':created_at' => date('c'),
+                ]);
+                $optionsCreated += $stmt->rowCount();
+            }
+        }
+
+        return ['fields_created' => $fieldsCreated, 'options_created' => $optionsCreated];
     }
 }

@@ -42,7 +42,7 @@ class TextHandler
         $decoded     = null;
         $entryId       = null;
         $emailOverride = null;
-        $projectId     = null;
+        $fieldValues   = [];
 
         // -- JSON with text_or_url field -------------------
         if (stripos($contentType, 'application/json') !== false) {
@@ -61,12 +61,25 @@ class TextHandler
                     }
                     unset($decoded['_email']);
                 }
-                if (isset($decoded['_project'])) {
-                    $projectId = (int) $decoded['_project'];
-                    unset($decoded['_project']);
+                // Extract dynamic custom field values
+                if (!empty($config['db_enabled'])) {
+                    $customFields = DatabaseAction::getAllCustomFields($config['db_path']);
+                    foreach ($customFields as $cf) {
+                        $key = '_' . $cf['name'];
+                        if (isset($decoded[$key])) {
+                            $optId = (int) $decoded[$key];
+                            if (DatabaseAction::getOptionById($config['db_path'], $cf['name'], $optId) === null) {
+                                http_response_code(400);
+                                exit(ucfirst($cf['name']) . ' not found');
+                            }
+                            $fieldValues[$cf['name']] = $optId;
+                            unset($decoded[$key]);
+                        }
+                    }
                 }
+
                 // Re-encode body without reserved fields
-                if ($entryId !== null || $emailOverride !== null || $projectId !== null) {
+                if ($entryId !== null || $emailOverride !== null || !empty($fieldValues)) {
                     $body = json_encode($decoded, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                 }
 
@@ -83,13 +96,6 @@ class TextHandler
                     }
                 }
 
-                if ($projectId !== null && !empty($config['db_enabled'])) {
-                    $proj = DatabaseAction::getProjectById($config['db_path'], $projectId);
-                    if ($proj === null) {
-                        http_response_code(400);
-                        exit('Project not found');
-                    }
-                }
             }
 
             if (json_last_error() === JSON_ERROR_NONE && isset($decoded['text_or_url'])) {
@@ -128,14 +134,17 @@ class TextHandler
         if (!empty($config['db_enabled'])) {
             if ($entryId !== null) {
                 // Append mode: add as attachment to existing entry
-                DatabaseAction::appendText(
+                $attachmentId = DatabaseAction::appendText(
                     $config['db_path'],
                     $entryId,
                     $subject,
                     $body,
-                    $ctx,
-                    $projectId
+                    $ctx
                 );
+                // Write custom field pivot rows for attachment
+                foreach ($fieldValues as $fn => $optId) {
+                    DatabaseAction::setAttachmentFieldValue($config['db_path'], $attachmentId, $fn, $optId);
+                }
                 $insertId = $entryId;
             } else {
                 // Normal mode: create new entry
@@ -143,9 +152,12 @@ class TextHandler
                     $config['db_path'],
                     $subject,
                     $body,
-                    $ctx,
-                    $projectId
+                    $ctx
                 );
+                // Write custom field pivot rows for entry
+                foreach ($fieldValues as $fn => $optId) {
+                    DatabaseAction::setEntryFieldValue($config['db_path'], $insertId, $fn, $optId);
+                }
             }
         }
 

@@ -1,142 +1,39 @@
 # Reserved Fields Reference
 
-Fields prefixed with `_` are internal control fields. They are **stripped before storage** — they never appear in the database or in API responses.
+Fields prefixed with `_` are internal control fields. They are **stripped before storage** — they never appear in the database `body` or `subject` columns.
 
-## `_id` — Append Mode
+## Hardcoded Fields
 
-Attach text or files to an existing entry instead of creating a new one.
+These fields are built into the codebase:
 
-| Property | Value |
-|----------|-------|
-| Type | `int` |
-| Handlers | `TextHandler`, `FileHandler` |
-| Requires | `db_enabled = true` |
+| Field | Type | Effect | Details |
+|-------|------|--------|---------|
+| `_id` | int | Append mode — attach to existing entry instead of creating new one | [docs](endpoints/custom_fields/_id.md) |
+| `_email` | bool | `false` suppresses email for this request even when `email_enabled` is on | [docs](endpoints/custom_fields/_email.md) |
 
-### Behavior
+## Dynamic Custom Fields
 
-1. The handler casts the value to `int`
-2. Looks up the parent entry in the database — returns **404** if not found
-3. Returns **400** if `db_enabled` is off
-4. Inserts an attachment row linked to the parent entry
-5. The response returns the **parent `_id`** (not a new ID), keeping IDs sequential
+Custom fields are auto-discovered from the `custom_fields` database table. They follow the same `_`-prefix convention and are validated against their options. Values are stored in pivot tables (`entry_field_values`, `attachment_field_values`), not in entry columns.
 
-### Examples
+### Default Fields (seeded automatically)
 
-**Text (JSON body):**
+| Field | Type | Effect | Details |
+|-------|------|--------|---------|
+| `_project` | int | Tag entry with a project option ID; returns 400 if not found | [docs](endpoints/custom_fields/_project.md) |
+| `_status` | int | Tag entry with a status option ID; returns 400 if not found | [docs](endpoints/custom_fields/_status.md) |
+| `_resolution` | int | Tag entry with a resolution option ID; returns 400 if not found | [docs](endpoints/custom_fields/_resolution.md) |
 
-```bash
-curl -X POST https://example.com/share.php \
-  -H "Content-Type: application/json" \
-  -d '{"_id": 1, "text_or_url": "Additional note for entry 1"}'
-```
+### Creating New Custom Fields
 
-**File (multipart form-data):**
+New fields can be added entirely via the API — no code changes required:
 
-```bash
-curl -X POST https://example.com/share.php \
-  -F "file=@photo.jpg" \
-  -F "_id=1"
-```
+1. `POST /custom-fields` with `{"name": "priority", "description": "Issue priority"}` — creates the field
+2. `POST /field-options/priority` with `{"name": "high"}` — adds options
+3. The field is immediately usable as `_priority` in webhook requests
+4. `GET /fields` automatically includes the new field with `resource` metadata
+5. `GET /entries?priority_id=1` — filter support is automatic
+6. `PUT /entries/{id}` with `{"priority_id": 1}` — update support is automatic
 
----
+See [custom fields CRUD endpoints](endpoints/get-custom-fields.md) and [field options CRUD endpoints](endpoints/get-field-options.md) for full documentation.
 
-## `_email` — Email Suppression
-
-Override the global `email_enabled` setting for a single request. Set to a falsy value to suppress the email notification.
-
-| Property | Value |
-|----------|-------|
-| Type | `bool` |
-| Handlers | `TextHandler`, `FileHandler` |
-| Default | Inherits from `email_enabled` config |
-
-### Accepted Values
-
-| Value | Effect |
-|-------|--------|
-| `false` (bool) | Suppresses email |
-| `"false"` (string) | Suppresses email (coerced) |
-| `"0"` (string) | Suppresses email (coerced) |
-| `""` (empty string) | Suppresses email (coerced) |
-| Any other truthy value | Email is sent (if `email_enabled` is on) |
-| Field omitted | Email is sent (if `email_enabled` is on) |
-
-### Behavior
-
-- When `_email` evaluates to `false`, the email action is skipped even if `email_enabled` is `true` in config
-- When `_email` is omitted or truthy, normal `email_enabled` behavior applies
-- The field is stripped from the stored body — it never reaches the database or disk
-
-### Examples
-
-**Suppress email on a text payload:**
-
-```bash
-curl -X POST https://example.com/share.php \
-  -H "Content-Type: application/json" \
-  -d '{"_email": false, "text_or_url": "Log this but do not email"}'
-```
-
-**Suppress email on a file upload:**
-
-```bash
-curl -X POST https://example.com/share.php \
-  -F "file=@backup.zip" \
-  -F "_email=false"
-```
-
-**Combine both reserved fields:**
-
-```bash
-curl -X POST https://example.com/share.php \
-  -H "Content-Type: application/json" \
-  -d '{"_id": 3, "_email": false, "text_or_url": "Silent attachment"}'
-```
-
----
-
-## `_project` — Project ID
-
-Tag the entry with a project ID from the `projects` table.
-
-| Property | Value |
-|----------|-------|
-| Type | `int` |
-| Handlers | `TextHandler`, `FileHandler` |
-| Default | None (field is optional) |
-| Requires | `db_enabled = true` for validation |
-
-### Behavior
-
-- When present, the value is cast to `int` and validated against the `projects` table
-- Returns **400** `"Project not found"` if the project ID does not exist
-- The value is stored in the entry's `project_id` column
-- The field is stripped from the stored body — it never appears in the `body` or `subject` columns
-- Use `GET /projects` to list available projects, `POST /projects` to create new ones
-- Available projects are discoverable via `GET /fields` (which includes a `resource` object pointing to `/projects`)
-
-### Examples
-
-**Tag a text entry with a project:**
-
-```bash
-curl -X POST https://example.com/share.php \
-  -H "Content-Type: application/json" \
-  -d '{"_project": 1, "text_or_url": "Note for this project"}'
-```
-
-**Tag a file upload with a project:**
-
-```bash
-curl -X POST https://example.com/share.php \
-  -F "file=@report.pdf" \
-  -F "_project=1"
-```
-
-**Combine with other reserved fields:**
-
-```bash
-curl -X POST https://example.com/share.php \
-  -H "Content-Type: application/json" \
-  -d '{"_id": 2, "_email": false, "_project": 1, "text_or_url": "Silent attachment with project tag"}'
-```
+See individual field documentation in [`docs/endpoints/custom_fields/`](endpoints/custom_fields/) for behavior, examples, and related resources.

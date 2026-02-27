@@ -312,9 +312,18 @@ $app->get('/entries', function (Request $request, Response $response) use ($chec
     $params = $request->getQueryParams();
     $page = max(1, (int) ($params['page'] ?? 1));
     $perPage = max(1, min(100, (int) ($params['per_page'] ?? 20)));
-    $projectId = isset($params['project_id']) ? (int) $params['project_id'] : null;
 
-    $result = DatabaseAction::getAllPaginated($config['db_path'], $page, $perPage, $projectId);
+    // Extract dynamic custom field filters (e.g. status_id=1, project_id=1)
+    $fieldFilters = [];
+    $customFields = DatabaseAction::getAllCustomFields($config['db_path']);
+    foreach ($customFields as $cf) {
+        $filterKey = $cf['name'] . '_id';
+        if (isset($params[$filterKey])) {
+            $fieldFilters[$cf['name']] = (int) $params[$filterKey];
+        }
+    }
+
+    $result = DatabaseAction::getAllPaginated($config['db_path'], $page, $perPage, $fieldFilters);
     $response->getBody()->write((string) json_encode($result));
     return $response->withHeader('Content-Type', 'application/json');
 });
@@ -367,14 +376,32 @@ $app->put('/entries/{id:[0-9]+}', function (Request $request, Response $response
     $subject = isset($body['subject']) ? (string) $body['subject'] : null;
     $bodyText = isset($body['body']) ? (string) $body['body'] : null;
 
-    if ($subject === null && $bodyText === null) {
+    // Extract dynamic custom field values (e.g. status_id, resolution_id)
+    $fieldValues = [];
+    $customFields = DatabaseAction::getAllCustomFields($config['db_path']);
+    foreach ($customFields as $cf) {
+        $fieldKey = $cf['name'] . '_id';
+        if (isset($body[$fieldKey])) {
+            $optId = (int) $body[$fieldKey];
+            $option = DatabaseAction::getOptionById($config['db_path'], $cf['name'], $optId);
+            if ($option === null) {
+                $response->getBody()->write((string) json_encode(['error' => ucfirst($cf['name']) . ' option not found']));
+                return $response
+                    ->withStatus(400)
+                    ->withHeader('Content-Type', 'application/json');
+            }
+            $fieldValues[$cf['name']] = $optId;
+        }
+    }
+
+    if ($subject === null && $bodyText === null && empty($fieldValues)) {
         $response->getBody()->write((string) json_encode(['error' => 'No fields to update']));
         return $response
             ->withStatus(400)
             ->withHeader('Content-Type', 'application/json');
     }
 
-    $updated = DatabaseAction::updateEntry($config['db_path'], (int) $args['id'], $subject, $bodyText);
+    $updated = DatabaseAction::updateEntry($config['db_path'], (int) $args['id'], $subject, $bodyText, $fieldValues);
     if ($updated === null) {
         $response->getBody()->write((string) json_encode(['error' => 'Entry not found']));
         return $response
@@ -412,9 +439,9 @@ $app->delete('/attachments/{id:[0-9]+}', function (Request $request, Response $r
     return $response->withHeader('Content-Type', 'application/json');
 });
 
-// -- Project routes ----------------------------------------------------------
+// -- Custom field routes -----------------------------------------------------
 
-$app->get('/projects', function (Request $request, Response $response) use ($checkAuth, $checkDb, $config): Response {
+$app->get('/custom-fields', function (Request $request, Response $response) use ($checkAuth, $checkDb, $config): Response {
     $dbResponse = $checkDb($response);
     if ($dbResponse !== null) {
         return $dbResponse;
@@ -424,12 +451,12 @@ $app->get('/projects', function (Request $request, Response $response) use ($che
         return $authResponse;
     }
 
-    $projects = DatabaseAction::getAllProjects($config['db_path']);
-    $response->getBody()->write((string) json_encode($projects));
+    $fields = DatabaseAction::getAllCustomFields($config['db_path']);
+    $response->getBody()->write((string) json_encode($fields));
     return $response->withHeader('Content-Type', 'application/json');
 });
 
-$app->post('/projects', function (Request $request, Response $response) use ($checkAuth, $checkDb, $config): Response {
+$app->post('/custom-fields', function (Request $request, Response $response) use ($checkAuth, $checkDb, $config): Response {
     $dbResponse = $checkDb($response);
     if ($dbResponse !== null) {
         return $dbResponse;
@@ -442,17 +469,28 @@ $app->post('/projects', function (Request $request, Response $response) use ($ch
     $body = json_decode((string) $request->getBody(), true);
     $name = isset($body['name']) ? trim((string) $body['name']) : '';
     if ($name === '') {
-        $response->getBody()->write((string) json_encode(['error' => 'Project name is required']));
+        $response->getBody()->write((string) json_encode(['error' => 'Field name is required']));
         return $response
             ->withStatus(400)
             ->withHeader('Content-Type', 'application/json');
     }
 
+    // Validate name format: lowercase letters and underscores only
+    if (!preg_match('/^[a-z][a-z_]*$/', $name)) {
+        $response->getBody()->write((string) json_encode(['error' => 'Field name must be lowercase letters and underscores only, starting with a letter']));
+        return $response
+            ->withStatus(400)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    $description = isset($body['description']) ? trim((string) $body['description']) : '';
+    $sortOrder = isset($body['sort_order']) ? (int) $body['sort_order'] : 0;
+
     try {
-        $id = DatabaseAction::createProject($config['db_path'], $name);
+        DatabaseAction::createCustomField($config['db_path'], $name, $description, $sortOrder);
     } catch (\PDOException $e) {
         if (strpos($e->getMessage(), 'UNIQUE') !== false) {
-            $response->getBody()->write((string) json_encode(['error' => 'Project name already exists']));
+            $response->getBody()->write((string) json_encode(['error' => 'Custom field already exists']));
             return $response
                 ->withStatus(409)
                 ->withHeader('Content-Type', 'application/json');
@@ -460,14 +498,29 @@ $app->post('/projects', function (Request $request, Response $response) use ($ch
         throw $e;
     }
 
-    $project = DatabaseAction::getProjectById($config['db_path'], $id);
-    $response->getBody()->write((string) json_encode($project));
+    $field = DatabaseAction::getCustomFieldByName($config['db_path'], $name);
+    $response->getBody()->write((string) json_encode($field));
     return $response
         ->withStatus(201)
         ->withHeader('Content-Type', 'application/json');
 });
 
-$app->put('/projects/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $config): Response {
+$app->get('/custom-fields/export', function (Request $request, Response $response) use ($checkAuth, $checkDb, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    $export = DatabaseAction::exportCustomFields($config['db_path']);
+    $response->getBody()->write((string) json_encode($export));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+$app->post('/custom-fields/import', function (Request $request, Response $response) use ($checkAuth, $checkDb, $config): Response {
     $dbResponse = $checkDb($response);
     if ($dbResponse !== null) {
         return $dbResponse;
@@ -478,28 +531,42 @@ $app->put('/projects/{id:[0-9]+}', function (Request $request, Response $respons
     }
 
     $body = json_decode((string) $request->getBody(), true);
-    $name = isset($body['name']) ? trim((string) $body['name']) : '';
-    if ($name === '') {
-        $response->getBody()->write((string) json_encode(['error' => 'Project name is required']));
+    if (!is_array($body) || !isset($body['fields']) || !is_array($body['fields'])) {
+        $response->getBody()->write((string) json_encode(['error' => 'Request body must contain a "fields" array']));
         return $response
             ->withStatus(400)
             ->withHeader('Content-Type', 'application/json');
     }
 
-    try {
-        $updated = DatabaseAction::updateProject($config['db_path'], (int) $args['id'], $name);
-    } catch (\PDOException $e) {
-        if (strpos($e->getMessage(), 'UNIQUE') !== false) {
-            $response->getBody()->write((string) json_encode(['error' => 'Project name already exists']));
-            return $response
-                ->withStatus(409)
-                ->withHeader('Content-Type', 'application/json');
-        }
-        throw $e;
+    $result = DatabaseAction::importCustomFields($config['db_path'], $body['fields']);
+    $response->getBody()->write((string) json_encode($result));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+$app->put('/custom-fields/{name:[a-z][a-z_]*}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
     }
 
+    $body = json_decode((string) $request->getBody(), true);
+    $description = isset($body['description']) ? (string) $body['description'] : null;
+    $sortOrder = isset($body['sort_order']) ? (int) $body['sort_order'] : null;
+
+    if ($description === null && $sortOrder === null) {
+        $response->getBody()->write((string) json_encode(['error' => 'No fields to update']));
+        return $response
+            ->withStatus(400)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    $updated = DatabaseAction::updateCustomField($config['db_path'], $args['name'], $description, $sortOrder);
     if ($updated === null) {
-        $response->getBody()->write((string) json_encode(['error' => 'Project not found']));
+        $response->getBody()->write((string) json_encode(['error' => 'Custom field not found']));
         return $response
             ->withStatus(404)
             ->withHeader('Content-Type', 'application/json');
@@ -509,7 +576,7 @@ $app->put('/projects/{id:[0-9]+}', function (Request $request, Response $respons
     return $response->withHeader('Content-Type', 'application/json');
 });
 
-$app->delete('/projects/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $config): Response {
+$app->delete('/custom-fields/{name:[a-z][a-z_]*}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $config): Response {
     $dbResponse = $checkDb($response);
     if ($dbResponse !== null) {
         return $dbResponse;
@@ -519,15 +586,166 @@ $app->delete('/projects/{id:[0-9]+}', function (Request $request, Response $resp
         return $authResponse;
     }
 
-    $deleted = DatabaseAction::deleteProject($config['db_path'], (int) $args['id']);
+    $deleted = DatabaseAction::deleteCustomField($config['db_path'], $args['name']);
     if (!$deleted) {
-        $response->getBody()->write((string) json_encode(['error' => 'Project not found']));
+        $response->getBody()->write((string) json_encode(['error' => 'Custom field not found']));
         return $response
             ->withStatus(404)
             ->withHeader('Content-Type', 'application/json');
     }
 
-    $response->getBody()->write((string) json_encode(['message' => 'Project deleted']));
+    $response->getBody()->write((string) json_encode(['message' => 'Custom field deleted']));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+// -- Field option routes -----------------------------------------------------
+
+$app->get('/field-options/{field:[a-z][a-z_]*}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    $field = DatabaseAction::getCustomFieldByName($config['db_path'], $args['field']);
+    if ($field === null) {
+        $response->getBody()->write((string) json_encode(['error' => 'Custom field not found']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    $options = DatabaseAction::getAllOptions($config['db_path'], $args['field']);
+    $response->getBody()->write((string) json_encode($options));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+$app->post('/field-options/{field:[a-z][a-z_]*}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    $field = DatabaseAction::getCustomFieldByName($config['db_path'], $args['field']);
+    if ($field === null) {
+        $response->getBody()->write((string) json_encode(['error' => 'Custom field not found']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    $body = json_decode((string) $request->getBody(), true);
+    $name = isset($body['name']) ? trim((string) $body['name']) : '';
+    if ($name === '') {
+        $response->getBody()->write((string) json_encode(['error' => 'Option name is required']));
+        return $response
+            ->withStatus(400)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    try {
+        $id = DatabaseAction::createOption($config['db_path'], $args['field'], $name);
+    } catch (\PDOException $e) {
+        if (strpos($e->getMessage(), 'UNIQUE') !== false) {
+            $response->getBody()->write((string) json_encode(['error' => 'Option name already exists for this field']));
+            return $response
+                ->withStatus(409)
+                ->withHeader('Content-Type', 'application/json');
+        }
+        throw $e;
+    }
+
+    $option = DatabaseAction::getOptionById($config['db_path'], $args['field'], $id);
+    $response->getBody()->write((string) json_encode($option));
+    return $response
+        ->withStatus(201)
+        ->withHeader('Content-Type', 'application/json');
+});
+
+$app->put('/field-options/{field:[a-z][a-z_]*}/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    $field = DatabaseAction::getCustomFieldByName($config['db_path'], $args['field']);
+    if ($field === null) {
+        $response->getBody()->write((string) json_encode(['error' => 'Custom field not found']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    $body = json_decode((string) $request->getBody(), true);
+    $name = isset($body['name']) ? trim((string) $body['name']) : '';
+    if ($name === '') {
+        $response->getBody()->write((string) json_encode(['error' => 'Option name is required']));
+        return $response
+            ->withStatus(400)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    try {
+        $updated = DatabaseAction::updateOption($config['db_path'], $args['field'], (int) $args['id'], $name);
+    } catch (\PDOException $e) {
+        if (strpos($e->getMessage(), 'UNIQUE') !== false) {
+            $response->getBody()->write((string) json_encode(['error' => 'Option name already exists for this field']));
+            return $response
+                ->withStatus(409)
+                ->withHeader('Content-Type', 'application/json');
+        }
+        throw $e;
+    }
+
+    if ($updated === null) {
+        $response->getBody()->write((string) json_encode(['error' => 'Option not found']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    $response->getBody()->write((string) json_encode($updated));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+$app->delete('/field-options/{field:[a-z][a-z_]*}/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($checkAuth, $checkDb, $config): Response {
+    $dbResponse = $checkDb($response);
+    if ($dbResponse !== null) {
+        return $dbResponse;
+    }
+    $authResponse = $checkAuth($request, $response);
+    if ($authResponse !== null) {
+        return $authResponse;
+    }
+
+    $field = DatabaseAction::getCustomFieldByName($config['db_path'], $args['field']);
+    if ($field === null) {
+        $response->getBody()->write((string) json_encode(['error' => 'Custom field not found']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    $deleted = DatabaseAction::deleteOption($config['db_path'], $args['field'], (int) $args['id']);
+    if (!$deleted) {
+        $response->getBody()->write((string) json_encode(['error' => 'Option not found']));
+        return $response
+            ->withStatus(404)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    $response->getBody()->write((string) json_encode(['message' => 'Option deleted']));
     return $response->withHeader('Content-Type', 'application/json');
 });
 
@@ -539,7 +757,7 @@ $app->get('/auth', function (Request $request, Response $response) use ($config)
     return $response->withHeader('Content-Type', 'application/json');
 });
 
-$app->get('/fields', function (Request $request, Response $response) : Response {
+$app->get('/fields', function (Request $request, Response $response) use ($config): Response {
     $fields = [
         [
             'name' => '_id',
@@ -558,19 +776,27 @@ $app->get('/fields', function (Request $request, Response $response) : Response 
                 ['value' => true, 'description' => 'Send email (default when omitted, if email_enabled is on)'],
             ],
         ],
-        [
-            'name' => '_project',
-            'type' => 'int',
-            'description' => 'Tag the entry with a project ID from the projects table',
-            'accepted_values' => [
-                ['value' => 1, 'description' => 'ID of the project (must exist in projects table)'],
-            ],
-            'resource' => [
-                'name' => 'projects',
-                'path' => '/projects',
-            ],
-        ],
     ];
+
+    // Auto-discover custom fields from database
+    if (!empty($config['db_enabled'])) {
+        $customFields = DatabaseAction::getAllCustomFields($config['db_path']);
+        foreach ($customFields as $cf) {
+            $fields[] = [
+                'name' => '_' . $cf['name'],
+                'type' => 'int',
+                'description' => $cf['description'] ?? ('Tag the entry with a ' . $cf['name']),
+                'accepted_values' => [
+                    ['value' => 1, 'description' => 'ID of the ' . $cf['name'] . ' option (must exist)'],
+                ],
+                'resource' => [
+                    'name' => $cf['name'],
+                    'path' => '/field-options/' . $cf['name'],
+                ],
+            ];
+        }
+    }
+
     $response->getBody()->write((string) json_encode($fields));
     return $response->withHeader('Content-Type', 'application/json');
 });

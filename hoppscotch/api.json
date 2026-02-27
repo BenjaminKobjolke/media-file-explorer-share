@@ -1,7 +1,7 @@
 [{
   "v": 11,
   "id": "cmfs0001a001ms001apiroute",
-  "name": "Read API (api.php)",
+  "name": "Share API",
   "folders": [],
   "requests": [
     {
@@ -140,7 +140,9 @@
       "params": [
         {"key": "page", "value": "1", "active": true},
         {"key": "per_page", "value": "5", "active": true},
-        {"key": "project_id", "value": "1", "active": false}
+        {"key": "project_id", "value": "1", "active": false},
+        {"key": "status_id", "value": "1", "active": false},
+        {"key": "resolution_id", "value": "1", "active": false}
       ],
       "headers": [],
       "preRequestScript": "",
@@ -157,7 +159,7 @@
       },
       "requestVariables": [],
       "responses": {},
-      "description": "List all entries with pagination and attachment counts. Optionally filter by project_id. Returns entries ordered by created_at DESC. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/entries?page=1&per_page=5"
+      "description": "List all entries with pagination and attachment counts. Optionally filter by project_id, status_id, resolution_id, or any custom field. Returns entries ordered by created_at DESC. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/entries?page=1&per_page=5"
     },
     {
       "v": "17",
@@ -176,11 +178,11 @@
       },
       "body": {
         "contentType": "application/json",
-        "body": "{\n    \"subject\": \"Updated subject\"\n}"
+        "body": "{\n    \"subject\": \"Updated subject\",\n    \"status_id\": 1\n}"
       },
       "requestVariables": [],
       "responses": {},
-      "description": "Update an entry's subject and/or body. Returns the full entry with attachments. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/entries/1"
+      "description": "Update an entry's subject, body, and/or custom field values (e.g. status_id, resolution_id). Returns the full entry with attachments. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/entries/1"
     },
     {
       "v": "17",
@@ -230,13 +232,13 @@
     },
     {
       "v": "17",
-      "name": "List projects",
+      "name": "List custom fields",
       "method": "GET",
-      "endpoint": "<<baseURL>>api.php/projects",
+      "endpoint": "<<baseURL>>api.php/custom-fields",
       "params": [],
       "headers": [],
       "preRequestScript": "",
-      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has _version and data array of projects\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(Array.isArray(body.data)).toBe(true);\n  body.data.forEach((p) => {\n    pw.expect(typeof p.id).toBe(\"number\");\n    pw.expect(p.name).toBeDefined();\n    pw.expect(typeof p.entry_count).toBe(\"number\");\n  });\n});",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has _version and data array of custom fields\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(Array.isArray(body.data)).toBe(true);\n  body.data.forEach((f) => {\n    pw.expect(f.name).toBeDefined();\n    pw.expect(typeof f.sort_order).toBe(\"number\");\n    pw.expect(typeof f.option_count).toBe(\"number\");\n  });\n});",
       "auth": {
         "authType": "basic",
         "authActive": true,
@@ -249,17 +251,17 @@
       },
       "requestVariables": [],
       "responses": {},
-      "description": "List all projects with entry counts. Returns a data array of project objects. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/projects"
+      "description": "List all custom fields with option counts. Returns default seeded fields (project, status, resolution) plus any user-created fields. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/custom-fields"
     },
     {
       "v": "17",
-      "name": "Create project",
+      "name": "Create custom field",
       "method": "POST",
-      "endpoint": "<<baseURL>>api.php/projects",
+      "endpoint": "<<baseURL>>api.php/custom-fields",
       "params": [],
       "headers": [],
       "preRequestScript": "",
-      "testScript": "pw.test(\"Status code is 201\", () => {\n  pw.expect(pw.response.status).toBe(201);\n});\n\npw.test(\"Response has created project with id and name\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n  pw.expect(body.name).toBeDefined();\n  pw.expect(body.created_at).toBeDefined();\n});",
+      "testScript": "pw.test(\"Status code is 201\", () => {\n  pw.expect(pw.response.status).toBe(201);\n});\n\npw.test(\"Response has created custom field\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(body.name).toBeDefined();\n  pw.expect(body.created_at).toBeDefined();\n});",
       "auth": {
         "authType": "basic",
         "authActive": true,
@@ -268,21 +270,21 @@
       },
       "body": {
         "contentType": "application/json",
-        "body": "{\n    \"name\": \"Test Project\"\n}"
+        "body": "{\n    \"name\": \"priority\",\n    \"description\": \"Issue priority level\",\n    \"sort_order\": 2\n}"
       },
       "requestVariables": [],
       "responses": {},
-      "description": "Create a new project. Returns 201 with the created project. Returns 409 if the name already exists. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/projects"
+      "description": "Create a new custom field. Name must be lowercase letters and underscores only. Returns 409 if name already exists. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/custom-fields"
     },
     {
       "v": "17",
-      "name": "Rename project",
+      "name": "Update custom field",
       "method": "PUT",
-      "endpoint": "<<baseURL>>api.php/projects/1",
+      "endpoint": "<<baseURL>>api.php/custom-fields/priority",
       "params": [],
       "headers": [],
       "preRequestScript": "",
-      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has updated project\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n  pw.expect(body.name).toBeDefined();\n});",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has updated custom field\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(body.name).toBeDefined();\n});",
       "auth": {
         "authType": "basic",
         "authActive": true,
@@ -291,21 +293,21 @@
       },
       "body": {
         "contentType": "application/json",
-        "body": "{\n    \"name\": \"Renamed Project\"\n}"
+        "body": "{\n    \"description\": \"Updated description\",\n    \"sort_order\": 5\n}"
       },
       "requestVariables": [],
       "responses": {},
-      "description": "Rename an existing project. Returns 404 if not found, 409 if name already exists. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/projects/1"
+      "description": "Update a custom field's description and/or sort order. Returns 404 if not found. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/custom-fields/priority"
     },
     {
       "v": "17",
-      "name": "Delete project",
+      "name": "Delete custom field",
       "method": "DELETE",
-      "endpoint": "<<baseURL>>api.php/projects/1",
+      "endpoint": "<<baseURL>>api.php/custom-fields/priority",
       "params": [],
       "headers": [],
       "preRequestScript": "",
-      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response confirms deletion\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body.message).toBe(\"Project deleted\");\n});",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response confirms deletion\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body.message).toBe(\"Custom field deleted\");\n});",
       "auth": {
         "authType": "basic",
         "authActive": true,
@@ -318,7 +320,145 @@
       },
       "requestVariables": [],
       "responses": {},
-      "description": "Delete a project. Sets project_id to NULL on associated entries and attachments. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/projects/1"
+      "description": "Delete a custom field and all its options and pivot rows. Returns 404 if not found. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/custom-fields/priority"
+    },
+    {
+      "v": "17",
+      "name": "Export custom fields",
+      "method": "GET",
+      "endpoint": "<<baseURL>>api.php/custom-fields/export",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has _version and fields array\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(Array.isArray(body.fields)).toBe(true);\n  body.fields.forEach((f) => {\n    pw.expect(f.name).toBeDefined();\n    pw.expect(f.description).toBeDefined();\n    pw.expect(typeof f.sort_order).toBe(\"number\");\n    pw.expect(Array.isArray(f.options)).toBe(true);\n  });\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Export all custom fields with their options as nested JSON. Output can be fed directly into POST /custom-fields/import. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/custom-fields/export"
+    },
+    {
+      "v": "17",
+      "name": "Import custom fields",
+      "method": "POST",
+      "endpoint": "<<baseURL>>api.php/custom-fields/import",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has import counts\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(typeof body.fields_created).toBe(\"number\");\n  pw.expect(typeof body.options_created).toBe(\"number\");\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n    \"fields\": [\n        {\n            \"name\": \"priority\",\n            \"description\": \"Issue priority level\",\n            \"sort_order\": 2,\n            \"options\": [\"low\", \"medium\", \"high\", \"critical\"]\n        }\n    ]\n}"
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Import custom fields with options in merge mode (INSERT OR IGNORE). Existing fields and options are skipped. Safe to re-import. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/custom-fields/import"
+    },
+    {
+      "v": "17",
+      "name": "List field options",
+      "method": "GET",
+      "endpoint": "<<baseURL>>api.php/field-options/status",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has _version and data array of options\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(Array.isArray(body.data)).toBe(true);\n  body.data.forEach((o) => {\n    pw.expect(typeof o.id).toBe(\"number\");\n    pw.expect(o.field_name).toBeDefined();\n    pw.expect(o.name).toBeDefined();\n    pw.expect(typeof o.entry_count).toBe(\"number\");\n  });\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "List all options for a custom field with entry counts. Returns 404 if the field does not exist. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/field-options/status"
+    },
+    {
+      "v": "17",
+      "name": "Create field option",
+      "method": "POST",
+      "endpoint": "<<baseURL>>api.php/field-options/status",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 201\", () => {\n  pw.expect(pw.response.status).toBe(201);\n});\n\npw.test(\"Response has created option\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n  pw.expect(body.field_name).toBeDefined();\n  pw.expect(body.name).toBeDefined();\n  pw.expect(body.created_at).toBeDefined();\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n    \"name\": \"blocked\"\n}"
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Create a new option for a custom field. Returns 404 if field not found, 409 if option name already exists. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/field-options/status"
+    },
+    {
+      "v": "17",
+      "name": "Rename field option",
+      "method": "PUT",
+      "endpoint": "<<baseURL>>api.php/field-options/status/1",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response has updated option\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body._version).toBeDefined();\n  pw.expect(typeof body.id).toBe(\"number\");\n  pw.expect(body.name).toBeDefined();\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": "application/json",
+        "body": "{\n    \"name\": \"active\"\n}"
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Rename an option within a custom field. Returns 404 if field or option not found, 409 if name already exists. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/field-options/status/1"
+    },
+    {
+      "v": "17",
+      "name": "Delete field option",
+      "method": "DELETE",
+      "endpoint": "<<baseURL>>api.php/field-options/status/1",
+      "params": [],
+      "headers": [],
+      "preRequestScript": "",
+      "testScript": "pw.test(\"Status code is 200\", () => {\n  pw.expect(pw.response.status).toBe(200);\n});\n\npw.test(\"Response confirms deletion\", () => {\n  const body = JSON.parse(pw.response.body);\n  pw.expect(body.message).toBe(\"Option deleted\");\n});",
+      "auth": {
+        "authType": "basic",
+        "authActive": true,
+        "username": "<<authUsername>>",
+        "password": "<<authPassword>>"
+      },
+      "body": {
+        "contentType": null,
+        "body": null
+      },
+      "requestVariables": [],
+      "responses": {},
+      "description": "Delete an option from a custom field and remove all associated pivot rows. Returns 404 if field or option not found. Requires api_enabled=true and db_enabled=true. Clean URL alternative: <<baseURL>>api/field-options/status/1"
     }
   ],
   "auth": {
@@ -327,5 +467,5 @@
   },
   "headers": [],
   "variables": [],
-  "description": "JSON API (api.php) — entry CRUD, project CRUD, file download, and field metadata. All JSON responses include _version and optionally _deploy_id."
+  "description": "JSON API (api.php) — entry CRUD, custom field CRUD, field option CRUD, export/import, file download, and field metadata. All JSON responses include _version and optionally _deploy_id."
 }]

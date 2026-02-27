@@ -1,17 +1,17 @@
-# PUT `/projects/{id}`
+# POST `/field-options/{field}`
 
-Rename an existing project.
+Create a new option for a custom field.
 
 ## URL
 
 ```
-PUT /projects/{id}
+POST /field-options/{field}
 ```
 
-- **Clean URL:** `api/projects/1`
-- **Direct:** `api.php/projects/1`
+- **Clean URL:** `api/field-options/status`
+- **Direct:** `api.php/field-options/status`
 
-The `{id}` parameter must be a positive integer (regex: `[0-9]+`).
+The `{field}` parameter must match `[a-z][a-z_]*` (lowercase letters and underscores, starting with a letter).
 
 ## Authentication
 
@@ -30,23 +30,24 @@ Requires both `api_enabled` and `db_enabled` to be `true` in config.
 
 ```json
 {
-  "name": "Renamed Project"
+  "name": "blocked"
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | New project name (must be unique, non-empty) |
+| `name` | string | Yes | Option name (must be unique within the field) |
 
 ## Success Response
 
-**Status:** 200
+**Status:** 201
 
 ```json
 {
   "_version": "1.1.0",
-  "id": 1,
-  "name": "Renamed Project",
+  "id": 8,
+  "field_name": "status",
+  "name": "blocked",
   "created_at": "2025-01-15T10:30:00+00:00"
 }
 ```
@@ -55,16 +56,16 @@ Requires both `api_enabled` and `db_enabled` to be `true` in config.
 
 | Status | Response |
 |--------|----------|
-| 400 | `{"error": "Project name is required"}` — name is missing or empty |
+| 400 | `{"error": "Option name is required"}` — name is missing or empty |
 | 401 | `{"error": "Unauthorized"}` — Basic Auth failed |
-| 404 | `{"error": "Project not found"}` |
-| 409 | `{"error": "Project name already exists"}` — UNIQUE constraint violation |
+| 404 | `{"error": "Custom field not found"}` — the `{field}` does not exist |
+| 409 | `{"error": "Option name already exists for this field"}` — duplicate name |
 
 ## Example
 
 ```bash
-curl -X PUT https://example.com/api/projects/1 \
+curl -X POST https://example.com/api/field-options/status \
   -H "Content-Type: application/json" \
   -u user:pass \
-  -d '{"name": "Renamed Project"}'
+  -d '{"name": "blocked"}'
 ```

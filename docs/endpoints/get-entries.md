@@ -17,7 +17,9 @@ GET /entries?page=1&per_page=20
 |-----------|------|---------|-------|-------------|
 | `page` | int | 1 | 1+ | Page number |
 | `per_page` | int | 20 | 1–100 | Items per page |
-| `project_id` | int | — | — | Filter entries by project ID |
+| `{field}_id` | int | — | — | Filter by custom field option ID (e.g. `project_id=1`, `status_id=1`, `resolution_id=4`) |
+
+**Dynamic filters:** Any registered custom field can be used as a filter by appending `_id` to the field name. Multiple filters can be combined (AND logic). Available fields are discoverable via `GET /fields`.
 
 ## Authentication
 
@@ -76,5 +78,12 @@ Requires both `api_enabled` and `db_enabled` to be `true` in config.
 
 ```bash
 curl https://example.com/api/entries?page=1&per_page=10 \
+  -u user:pass
+```
+
+### Filter by custom field
+
+```bash
+curl "https://example.com/api/entries?status_id=1&resolution_id=4" \
   -u user:pass
 ```

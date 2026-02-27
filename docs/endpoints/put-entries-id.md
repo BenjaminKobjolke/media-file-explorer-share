@@ -21,11 +21,14 @@ JSON object with at least one of:
 |-------|------|-------------|
 | `subject` | string | New subject line |
 | `body` | string | New body text |
+| `{field}_id` | int | Set a custom field value (e.g. `status_id`, `resolution_id`) |
 
 ```json
 {
   "subject": "Updated subject",
-  "body": "Updated body text"
+  "body": "Updated body text",
+  "status_id": 2,
+  "resolution_id": 4
 }
 ```
 
@@ -67,13 +70,15 @@ Returns the full entry with attachments (same format as GET `/entries/{id}`).
 ### Behavior
 
 - Only provided fields are updated; omitted fields remain unchanged
+- Custom field values (`{field}_id`) are validated — returns **400** if the option ID does not exist
 - Returns the full entry via the same lookup used by GET `/entries/{id}`
 
 ## Error Codes
 
 | Status | Response |
 |--------|----------|
-| 400 | `{"error": "No fields to update"}` — neither subject nor body provided |
+| 400 | `{"error": "No fields to update"}` — no subject, body, or custom field values provided |
+| 400 | `{"error": "{Field} option not found"}` — custom field option ID does not exist |
 | 401 | `{"error": "Unauthorized"}` — Basic Auth failed |
 | 404 | `{"error": "Entry not found"}` |
 

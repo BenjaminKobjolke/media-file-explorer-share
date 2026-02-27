@@ -85,12 +85,29 @@ Controlled by `max_file_size` (default: 10 MB). Returns **413** if exceeded. PHP
 
 ## Reserved Fields
 
-See [Reserved Fields Reference](../reserved-fields.md) for full details.
+| Field | Type | Effect | Details |
+|-------|------|--------|---------|
+| `_id` | int | Append to existing entry instead of creating new | [docs](custom_fields/_id.md) |
+| `_email` | bool | `false` suppresses email for this request | [docs](custom_fields/_email.md) |
+| `_project` | int | Tag entry with a project option ID | [docs](custom_fields/_project.md) |
+| `_status` | int | Tag entry with a status option ID | [docs](custom_fields/_status.md) |
+| `_resolution` | int | Tag entry with a resolution option ID | [docs](custom_fields/_resolution.md) |
+| `_{custom}` | int | Any registered custom field (auto-discovered) | [docs](../../docs/reserved-fields.md) |
 
-| Field | Type | Effect |
-|-------|------|--------|
-| `_id` | int | Append to existing entry instead of creating new |
-| `_email` | bool | `false` suppresses email for this request |
+### Custom field examples
+
+```bash
+# Tag with status and resolution
+curl -X POST https://example.com/share.php \
+  -H "Content-Type: application/json" \
+  -d '{"_status": 1, "_resolution": 4, "text_or_url": "Bug fixed"}'
+
+# File upload with status
+curl -X POST https://example.com/share.php \
+  -F "file=@screenshot.png" \
+  -F "_status=1" \
+  -F "_project=1"
+```
 
 ### Append mode example
 
