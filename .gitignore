@@ -11,3 +11,5 @@ composer.lock
 Thumbs.db
 .DS_Store
 .mcp.json
+.phpunit.cache/
+.phpunit.result.cache
